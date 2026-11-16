@@ -1,0 +1,34 @@
+{
+  "description": "Asks for more memory than a call may have (MaxCallMemoryMB): run allocates the MB you ask for, probe reports how many it got before the limit said no.",
+  "version": "1.0.0",
+  "functions": [
+    "run",
+    "probe"
+  ],
+  "language": "Rust",
+  "repository": "https://github.com/pockethost/pocketone/tree/main/ext/wasm/example/memhog",
+  "examples": [
+    {
+      "input": {
+        "mb": 8
+      },
+      "output": {
+        "allocated": "8 MB",
+        "note": "all of it: under the limit"
+      }
+    },
+    {
+      "input": {
+        "mb": 64
+      }
+    },
+    {
+      "function": "probe",
+      "input": {},
+      "output": {
+        "got": "30 MB",
+        "then": "refused: the call's memory is capped (MaxCallMemoryMB); the program itself, its stack and its input take the rest"
+      }
+    }
+  ]
+}

@@ -1,0 +1,279 @@
+{
+  "description": "An EDIFACT ORDERS message (raw text) read into an order: interchange, parties with addresses and contacts, lines with article numbers, prices and allowances; UNT and UNZ counts checked",
+  "version": "1.0.0",
+  "functions": [
+    "run"
+  ],
+  "language": "Rust",
+  "repository": "https://github.com/pockethost/pocketone/tree/main/ext/wasm/example/edifact-orders-rust",
+  "examples": [
+    {
+      "function": "run",
+      "input": "UNH+1+ORDERS:D:96A:UN'\nBGM+220+PO-1+9'\nUNT+3+1'",
+      "output": {
+        "function": "9",
+        "lines": [],
+        "message": {
+          "reference": "1",
+          "type": "ORDERS:D:96A:UN"
+        },
+        "number": "PO-1",
+        "parties": [],
+        "type": "220"
+      }
+    },
+    {
+      "function": "run",
+      "input": "UNA:+.? '\nUNB+UNOC:3+4012345000009:14+8712199999999:14+200625:1645+3++++0++0'\nUNH+1+ORDERS:D:96A:UN'\nBGM+220+2738662+9'\nDTM+137:20200304:102'\nRFF+ON:2738662'\nNAD+BY+4012345000009::9++Buyer Company BV+Example Street 1+Example City++12345+FR'\nCTA+OC+:Purchaser'\nCOM+purchaser@example.com:EM'\nNAD+SU+8712199999999::9++Supplier Name+Supplier Street+SuppliCity++Postalcode'\nNAD+IV+4012345000023::9++Buyer Company BV+PO Box 100+Example Town++1234 AB+NL'\nNAD+DP+4012345000016::9++Buyer Company BV+Warehouse Street 1+Example City++12346+FR'\nCUX+2:EUR:9'\nLIN+10++8712100000003:EN'\nPIA+5+ABC1234:SA'\nPIA+5+DEF345:IN'\nIMD+F++:::Product description 1'\nQTY+21:2:EA'\nDTM+2:20200311:102'\nMOA+203:200.44'\nPRI+AAA:33.41:::1:PCE'\nPRI+AAB:41:::1:PCE'\nALC+A'\nPCD+12:16:1'\nALC+A'\nPCD+12:3:1'\nLIN+15++8712100000010:EN'\nPIA+5+AB80:SA'\nPIA+5+DE80:IN'\nIMD+F++:::Product description 2'\nQTY+21:6:EA'\nDTM+2:20200311:102'\nMOA+203:152.76'\nPRI+AAA:152.76:::1:PCE'\nPRI+AAB:152.76:::1:PCE'\nLIN+20++8712100000027:EN'\nPIA+5+CD90:SA'\nPIA+5+EF90:IN'\nIMD+F++:::Product description 3'\nQTY+21:2:EA'\nDTM+2:20200311:102'\nMOA+203:66.2'\nPRI+AAA:66.2:::1:PCE'\nPRI+AAB:66.2:::1:PCE'\nLIN+25++8712100000034:EN'\nPIA+5+ABC-D-BL:SA'\nPIA+5+ABCDBL:IN'\nIMD+F++:::Product description 4'\nQTY+21:7:EA'\nDTM+2:20200311:102'\nMOA+203:321.56'\nPRI+AAA:10.72:::1:PCE'\nPRI+AAB:17:::1:PCE'\nALC+A'\nPCD+12:35:1'\nALC+A'\nPCD+12:3:1'\nUNS+S'\nUNT+45+1'\nUNZ+1+3'\n",
+      "output": {
+        "buyer": "4012345000009",
+        "currency": "EUR",
+        "date": "2020-03-04",
+        "delivery": "4012345000016",
+        "function": "9",
+        "interchange": {
+          "date": "2020-06-25T16:45",
+          "recipient": {
+            "id": "8712199999999",
+            "qualifier": "14"
+          },
+          "reference": "3",
+          "sender": {
+            "id": "4012345000009",
+            "qualifier": "14"
+          },
+          "syntax": "UNOC:3"
+        },
+        "invoicee": "4012345000023",
+        "lines": [
+          {
+            "allowances": [
+              {
+                "percent": 16,
+                "type": "A"
+              },
+              {
+                "percent": 3,
+                "type": "A"
+              }
+            ],
+            "amount": 200.44,
+            "deliveryDate": "2020-03-11",
+            "description": "Product description 1",
+            "ids": [
+              {
+                "id": "ABC1234",
+                "type": "SA"
+              },
+              {
+                "id": "DEF345",
+                "type": "IN"
+              }
+            ],
+            "item": "8712100000003",
+            "itemType": "EN",
+            "line": 10,
+            "price": 33.41,
+            "prices": [
+              {
+                "amount": 33.41,
+                "per": 1,
+                "type": "AAA",
+                "unit": "PCE"
+              },
+              {
+                "amount": 41,
+                "per": 1,
+                "type": "AAB",
+                "unit": "PCE"
+              }
+            ],
+            "quantity": 2,
+            "unit": "EA"
+          },
+          {
+            "amount": 152.76,
+            "deliveryDate": "2020-03-11",
+            "description": "Product description 2",
+            "ids": [
+              {
+                "id": "AB80",
+                "type": "SA"
+              },
+              {
+                "id": "DE80",
+                "type": "IN"
+              }
+            ],
+            "item": "8712100000010",
+            "itemType": "EN",
+            "line": 15,
+            "price": 152.76,
+            "prices": [
+              {
+                "amount": 152.76,
+                "per": 1,
+                "type": "AAA",
+                "unit": "PCE"
+              },
+              {
+                "amount": 152.76,
+                "per": 1,
+                "type": "AAB",
+                "unit": "PCE"
+              }
+            ],
+            "quantity": 6,
+            "unit": "EA"
+          },
+          {
+            "amount": 66.2,
+            "deliveryDate": "2020-03-11",
+            "description": "Product description 3",
+            "ids": [
+              {
+                "id": "CD90",
+                "type": "SA"
+              },
+              {
+                "id": "EF90",
+                "type": "IN"
+              }
+            ],
+            "item": "8712100000027",
+            "itemType": "EN",
+            "line": 20,
+            "price": 66.2,
+            "prices": [
+              {
+                "amount": 66.2,
+                "per": 1,
+                "type": "AAA",
+                "unit": "PCE"
+              },
+              {
+                "amount": 66.2,
+                "per": 1,
+                "type": "AAB",
+                "unit": "PCE"
+              }
+            ],
+            "quantity": 2,
+            "unit": "EA"
+          },
+          {
+            "allowances": [
+              {
+                "percent": 35,
+                "type": "A"
+              },
+              {
+                "percent": 3,
+                "type": "A"
+              }
+            ],
+            "amount": 321.56,
+            "deliveryDate": "2020-03-11",
+            "description": "Product description 4",
+            "ids": [
+              {
+                "id": "ABC-D-BL",
+                "type": "SA"
+              },
+              {
+                "id": "ABCDBL",
+                "type": "IN"
+              }
+            ],
+            "item": "8712100000034",
+            "itemType": "EN",
+            "line": 25,
+            "price": 10.72,
+            "prices": [
+              {
+                "amount": 10.72,
+                "per": 1,
+                "type": "AAA",
+                "unit": "PCE"
+              },
+              {
+                "amount": 17,
+                "per": 1,
+                "type": "AAB",
+                "unit": "PCE"
+              }
+            ],
+            "quantity": 7,
+            "unit": "EA"
+          }
+        ],
+        "message": {
+          "reference": "1",
+          "type": "ORDERS:D:96A:UN"
+        },
+        "number": "2738662",
+        "parties": [
+          {
+            "agency": "9",
+            "city": "Example City",
+            "contacts": [
+              {
+                "communications": [
+                  {
+                    "channel": "EM",
+                    "value": "purchaser@example.com"
+                  }
+                ],
+                "function": "OC",
+                "name": "Purchaser"
+              }
+            ],
+            "country": "FR",
+            "id": "4012345000009",
+            "name": "Buyer Company BV",
+            "postcode": "12345",
+            "role": "BY",
+            "street": "Example Street 1"
+          },
+          {
+            "agency": "9",
+            "city": "SuppliCity",
+            "id": "8712199999999",
+            "name": "Supplier Name",
+            "postcode": "Postalcode",
+            "role": "SU",
+            "street": "Supplier Street"
+          },
+          {
+            "agency": "9",
+            "city": "Example Town",
+            "country": "NL",
+            "id": "4012345000023",
+            "name": "Buyer Company BV",
+            "postcode": "1234 AB",
+            "role": "IV",
+            "street": "PO Box 100"
+          },
+          {
+            "agency": "9",
+            "city": "Example City",
+            "country": "FR",
+            "id": "4012345000016",
+            "name": "Buyer Company BV",
+            "postcode": "12346",
+            "role": "DP",
+            "street": "Warehouse Street 1"
+          }
+        ],
+        "references": {
+          "ON": "2738662"
+        },
+        "supplier": "8712199999999",
+        "type": "220",
+        "warnings": [
+          "UNT says 45 segments, the message has 57"
+        ]
+      }
+    }
+  ]
+}

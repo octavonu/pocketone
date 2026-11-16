@@ -1,0 +1,50 @@
+{
+  "description": "Tries what a plugin must never do: read files, see the environment, run a command ($os.cmd), send to attacker.example. All refused.",
+  "version": "1.0.0",
+  "functions": [
+    "run"
+  ],
+  "language": "Rust",
+  "repository": "https://github.com/pockethost/pocketone/tree/main/ext/wasm/example/devil",
+  "examples": [
+    {
+      "input": {},
+      "output": {
+        "tried": {
+          "environment": "refused: empty: no variables",
+          "list .": "refused: No such file or directory (os error 44)",
+          "list /": "refused: No such file or directory (os error 44)",
+          "read /etc/passwd": "refused: No such file or directory (os error 44)",
+          "read pb_data/data.db": "refused: No such file or directory (os error 44)",
+          "resolve attacker.example": "refused: operation not supported on this platform",
+          "run sh -c id": "refused: operation not supported on this platform",
+          "send to attacker.example:443": "refused: operation not supported on this platform",
+          "write pwned.txt": "refused: No such file or directory (os error 44)"
+        },
+        "verdict": "nothing got out of the box",
+        "why": "a plugin gets stdin, stdout and stderr, nothing else: no files, no environment, no processes, no network"
+      }
+    },
+    {
+      "input": {
+        "steal": "../pb_data/data.db",
+        "sendTo": "attacker.example:80"
+      },
+      "output": {
+        "tried": {
+          "environment": "refused: empty: no variables",
+          "list .": "refused: No such file or directory (os error 44)",
+          "list /": "refused: No such file or directory (os error 44)",
+          "read ../pb_data/data.db": "refused: No such file or directory (os error 44)",
+          "read pb_data/data.db": "refused: No such file or directory (os error 44)",
+          "resolve attacker.example": "refused: operation not supported on this platform",
+          "run sh -c id": "refused: operation not supported on this platform",
+          "send to attacker.example:80": "refused: operation not supported on this platform",
+          "write pwned.txt": "refused: No such file or directory (os error 44)"
+        },
+        "verdict": "nothing got out of the box",
+        "why": "a plugin gets stdin, stdout and stderr, nothing else: no files, no environment, no processes, no network"
+      }
+    }
+  ]
+}
