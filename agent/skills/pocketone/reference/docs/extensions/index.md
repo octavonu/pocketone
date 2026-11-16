@@ -50,6 +50,7 @@ Shared services a host gives every instance it runs.
 | [Mail Relay](https://pocketone.dev/docs/extensions/mailrelay) | Outgoing mail for instances without SMTP, through your relay, with limits. |
 | [S3 Fallback](https://pocketone.dev/docs/extensions/s3-fallback) | A default bucket for uploads and backups when an instance has no S3 of its own. |
 | [Server Timing](https://pocketone.dev/docs/extensions/servertiming) | Server-Timing headers for each step of a request. |
+| [WASM](https://pocketone.dev/docs/extensions/wasm) | Bring your own WASM: Go, Rust or Zig plugins called from pb_hooks, each a closed box. |
 
 ## Sell it as a service
 

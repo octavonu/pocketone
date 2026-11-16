@@ -72,6 +72,7 @@
 - [Mail Relay](/docs/extensions/mailrelay)
 - [S3 Fallback](/docs/extensions/s3-fallback)
 - [Server Timing](/docs/extensions/servertiming)
+- [WASM](/docs/extensions/wasm)
 
 # Extensions: sell it
 

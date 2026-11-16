@@ -35,6 +35,7 @@
     { "name": "mailrelay", "title": "Mail Relay", "group": "services", "summary": "Outgoing mail for instances without SMTP, through your relay, with limits." },
     { "name": "s3-fallback", "title": "S3 Fallback", "group": "services", "summary": "A default bucket for uploads and backups when an instance has no S3 of its own." },
     { "name": "servertiming", "title": "Server Timing", "group": "services", "summary": "Server-Timing headers for each step of a request." },
+    { "name": "wasm", "title": "WASM", "group": "services", "summary": "Bring your own WASM: Go, Rust or Zig plugins called from pb_hooks, each a closed box." },
     { "name": "tenants", "title": "Multitenant", "group": "saas", "summary": "Planned. Accounts that own instances: quotas, owner logins, tokens and an API." },
     { "name": "tenant-billing", "title": "Multitenant Billing", "group": "saas", "summary": "Planned. Plans, quotas and the billing provider hook for Multitenant." },
     { "name": "tenant-billing-ls", "title": "Lemon Squeezy Adapter", "group": "saas", "summary": "Planned. Lemon Squeezy as the billing provider." },
