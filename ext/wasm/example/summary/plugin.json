@@ -1,0 +1,12 @@
+{
+  "description": "Summarizes a post: its title and first words, and a word count",
+  "functions": ["run"],
+  "repository": "https://github.com/pockethost/pocketone/tree/main/ext/wasm/example/summary",
+  "examples": [
+    {
+      "function": "run",
+      "input": {"title": "Hello", "body": "one two three"},
+      "output": {"text": "Hello: one two three", "words": 3}
+    }
+  ]
+}

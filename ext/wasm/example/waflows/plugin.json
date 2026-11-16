@@ -1,0 +1,45 @@
+{
+  "description": "What a WhatsApp Flows endpoint needs and pb_hooks lacks: RSA-OAEP and AES-GCM with a given key and IV (Go's crypto/rsa, x509, pem, aes, cipher). JSON and base64 stay in the hook.",
+  "version": "1.0.0",
+  "functions": [
+    "rsa-decrypt",
+    "gcm-open",
+    "gcm-seal"
+  ],
+  "language": "Rust",
+  "repository": "https://github.com/pockethost/pocketone/tree/main/ext/wasm/example/waflows",
+  "examples": [
+    {
+      "function": "rsa-decrypt",
+      "input": {
+        "privateKey": "-----BEGIN PRIVATE KEY-----\nMIICdwIBADANBgkqhkiG9w0BAQEFAASCAmEwggJdAgEAAoGBAK1GUFgQciji2UQT\nY2rDmtH1ZgBPSmYvfp2aIjwMNemydv7b5dV1pnDJ7+WKGYHBCVDFEbeS8ZoWUZby\nTHRNlYymMFL3l1hG6aIpLtPzOCsOr9Wemfq9SK01lb/bZt0gXGI3PIiQ2owwxwL+\nQFGNBHbBf2QlHVI2qGtsm3fb8lBLAgMBAAECgYATzY9tISQK7DIsh5K7JvPQvx0T\nN/ymxRLRbEYxWqvms5DJ+9O+m52UEmAqeagEnk00P/GQa2jVVWuptrNqL1vB8TAm\nvGFRH2jhpyLgNmntb2YoY7dL3IFxnOX6r7FpvMtCI38PDy6bcH7ttUPT7atNSyVl\nFZhI4J4JeZzyVF5AsQJBANLczoRWc8TTXZ8+V+2T0gMRQgQawx2S3tAC8gQPaKfE\nszQxf71fklA/pRMKHrP8b3T/1qzyGsEMUCoaUmr1OBUCQQDSXbSOUkXBqNvh5dfI\nUftZj66KcY9m7bgINeuFCRFp3I5yoWcVUgIt1DGvRxxOkJMTQl1Pynlk1LQeq6qx\ntB7fAkB7sfYf4csl4kwgd2UDRFzFWeFdIQnmllrIsYGhahydliD99C+YOrFNDBjd\nE2mxcds8Sjx31cpmBsAcArbocZOFAkEA0gJ+SD7WKNl8ee5NF0zQ0r5gDxIDiUv0\nly3NLAi7e6WWB9Yd5Oj0B/B4kXU6SyyFx4pPQWLvAbxe/OeABtu8nQJBALpY0WXR\nXjqpFu6Z0mPgv335tZp0Xf/Lusas0lHxow6i6C/DFYSgCP3zVeaX60nIBl13TRap\nQNv3Kbe3EgA9M2M=\n-----END PRIVATE KEY-----\n",
+        "data": "kQOR5rqL2IZ5yiDkiF3JT9HGfWadl+JwO0ppe5dgyRBMa8AquD5Dye52tQQoAqnB0jKR3ukzpuc84KNeTI2eezYOHdsXcYt+xzSIdDbfY4SBflXU5PskJ5mVAw/8pIkiUxR2owICejNyUhQk58pCUWIS8W+TsH5hUE1ouIwxtD4="
+      },
+      "output": {
+        "data": "AAECAwQFBgcICQoLDA0ODw=="
+      }
+    },
+    {
+      "function": "gcm-open",
+      "input": {
+        "key": "AAECAwQFBgcICQoLDA0ODw==",
+        "iv": "KioqKioqKioqKioqKioqKg==",
+        "data": "8JuyVhbn9RfKSjvnr8i1BFDUTitKStT2m31HBr/hVsuMiire7YUVfAufuKUJOmFYzA=="
+      },
+      "output": {
+        "data": "eyJ2ZXJzaW9uIjoiMy4wIiwiYWN0aW9uIjoicGluZyJ9"
+      }
+    },
+    {
+      "function": "gcm-seal",
+      "input": {
+        "key": "AAECAwQFBgcICQoLDA0ODw==",
+        "iv": "1dXV1dXV1dXV1dXV1dXV1Q==",
+        "data": "eyJkYXRhIjp7InN0YXR1cyI6ImFjdGl2ZSJ9fQ=="
+      },
+      "output": {
+        "data": "Zpb+Wa3oq95SXtjRWINY51SKEUi50tHCKVKfdUCertr6HCGxbLJpNVLHHWw="
+      }
+    }
+  ]
+}

@@ -1,0 +1,28 @@
+{
+  "description": "AES-256-GCM encryption; the key comes in with the input",
+  "version": "1.0.0",
+  "functions": [
+    "encrypt",
+    "decrypt"
+  ],
+  "examples": [
+    {
+      "function": "encrypt",
+      "input": {
+        "key": "AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8=",
+        "text": "secret"
+      }
+    },
+    {
+      "function": "decrypt",
+      "input": {
+        "key": "AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8=",
+        "data": "cXcX6Q1E5dEW9tf8CGEcQ+5/YZEPNk7HxWgLRMdOnLQkng=="
+      },
+      "output": {
+        "text": "secret"
+      }
+    }
+  ],
+  "repository": "https://github.com/pockethost/pocketone/tree/main/ext/wasm/example/crypto"
+}

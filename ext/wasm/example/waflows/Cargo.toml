@@ -1,0 +1,18 @@
+[package]
+name = "waflows"
+version = "0.1.0"
+edition = "2021"
+publish = false
+
+[dependencies]
+rsa = { version = "0.10", default-features = false, features = ["encoding"] }
+sha2 = "0.11"
+aes-gcm = { version = "0.11", default-features = false, features = ["aes", "alloc"] }
+base64 = "0.22"
+serde_json = "1"
+
+[profile.release]
+opt-level = "z"
+lto = true
+strip = true
+codegen-units = 1

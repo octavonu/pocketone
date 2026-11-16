@@ -1,0 +1,81 @@
+{
+  "description": "Reads an XML order into the same order JSON as the orders plugin",
+  "version": "1.0.0",
+  "functions": [
+    "run"
+  ],
+  "language": "Rust",
+  "repository": "https://github.com/pockethost/pocketone/tree/main/ext/wasm/example/order-xml",
+  "examples": [
+    {
+      "function": "run",
+      "input": "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<Order>\n  <Number>PO-4711</Number>\n  <Date>2026-11-14</Date>\n  <Currency>EUR</Currency>\n  <Buyer>4012345000009</Buyer>\n  <Supplier>4098765000006</Supplier>\n  <Delivery>4012345000016</Delivery>\n  <Lines>\n    <Line number=\"1\"><Item>4000862141404</Item><Quantity unit=\"PCE\">10</Quantity><Price>12.50</Price></Line>\n    <Line number=\"2\"><Item>4000862141411</Item><Quantity unit=\"PCE\">3</Quantity><Price>7.25</Price></Line>\n  </Lines>\n</Order>\n",
+      "output": {
+        "number": "PO-4711",
+        "date": "2026-11-14",
+        "currency": "EUR",
+        "buyer": "4012345000009",
+        "supplier": "4098765000006",
+        "delivery": "4012345000016",
+        "lines": [
+          {
+            "line": 1,
+            "item": "4000862141404",
+            "quantity": 10,
+            "unit": "PCE",
+            "price": 12.5
+          },
+          {
+            "line": 2,
+            "item": "4000862141411",
+            "quantity": 3,
+            "unit": "PCE",
+            "price": 7.25
+          }
+        ]
+      }
+    },
+    {
+      "function": "run",
+      "input": "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<Order>\n  <Number>2738662</Number>\n  <Date>2020-03-04</Date>\n  <Currency>EUR</Currency>\n  <Buyer>4012345000009</Buyer>\n  <Supplier>8712199999999</Supplier>\n  <Delivery>4012345000016</Delivery>\n  <Lines>\n    <Line number=\"10\"><Item>8712100000003</Item><Quantity unit=\"EA\">2</Quantity><Price>33.41</Price></Line>\n    <Line number=\"15\"><Item>8712100000010</Item><Quantity unit=\"EA\">6</Quantity><Price>152.76</Price></Line>\n    <Line number=\"20\"><Item>8712100000027</Item><Quantity unit=\"EA\">2</Quantity><Price>66.2</Price></Line>\n    <Line number=\"25\"><Item>8712100000034</Item><Quantity unit=\"EA\">7</Quantity><Price>10.72</Price></Line>\n  </Lines>\n</Order>\n",
+      "output": {
+        "number": "2738662",
+        "date": "2020-03-04",
+        "currency": "EUR",
+        "buyer": "4012345000009",
+        "supplier": "8712199999999",
+        "delivery": "4012345000016",
+        "lines": [
+          {
+            "line": 10,
+            "item": "8712100000003",
+            "quantity": 2,
+            "unit": "EA",
+            "price": 33.41
+          },
+          {
+            "line": 15,
+            "item": "8712100000010",
+            "quantity": 6,
+            "unit": "EA",
+            "price": 152.76
+          },
+          {
+            "line": 20,
+            "item": "8712100000027",
+            "quantity": 2,
+            "unit": "EA",
+            "price": 66.2
+          },
+          {
+            "line": 25,
+            "item": "8712100000034",
+            "quantity": 7,
+            "unit": "EA",
+            "price": 10.72
+          }
+        ]
+      }
+    }
+  ]
+}
