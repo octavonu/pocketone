@@ -31,3 +31,6 @@ func (h *Host) Config() Config { return h.cfg }
 
 // ProducersLanguage is the language a "producers" custom section names.
 var ProducersLanguage = producersLanguage
+
+// Truncate cuts a message to at most n bytes, never inside a UTF-8 character.
+var Truncate = truncate

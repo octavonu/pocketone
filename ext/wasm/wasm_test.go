@@ -12,6 +12,7 @@ import (
 	"sync"
 	"testing"
 	"time"
+	"unicode/utf8"
 
 	"ganigeorgiev.com/pocketbase/pocketbase/apis"
 	"ganigeorgiev.com/pocketbase/pocketbase/core"
@@ -125,6 +126,35 @@ func TestInputOutput(t *testing.T) {
 	}
 	if out["text"] != "HELLO WASM WORLD" || out["words"] != float64(3) {
 		t.Fatalf("got %v", out)
+	}
+}
+
+// TestTruncate: a plugin's message, cut to the size limit, is cut before a character, never inside one: in UTF-8,
+// "ă" is 2 bytes and "😀" 4, and half a character would reach JS as "�".
+func TestTruncate(t *testing.T) {
+	for _, tc := range []struct {
+		s    string
+		n    int
+		want string
+	}{
+		{"hello", 10, "hello"},
+		{"hello", 5, "hello"},
+		{"hello", 3, "hel"},
+		{"hello", 0, ""},
+		{"abă", 4, "abă"},
+		{"abă", 3, "ab"}, // the limit falls inside ă
+		{"a😀b", 5, "a😀"},
+		{"a😀b", 4, "a"}, // inside 😀, at each of its bytes
+		{"a😀b", 3, "a"},
+		{"a😀b", 2, "a"},
+		{"ăa", 1, ""},
+		{strings.Repeat("ă", 600), 1 << 10, strings.Repeat("ă", 512)},             // a message at maxMessage, on a boundary
+		{"x" + strings.Repeat("ă", 600), 1 << 10, "x" + strings.Repeat("ă", 511)}, // and off one
+	} {
+		got := wasm.Truncate(tc.s, tc.n)
+		if got != tc.want || len(got) > tc.n || !utf8.ValidString(got) {
+			t.Errorf("Truncate(%.12q…, %d) = %.12q… (%d bytes), want %.12q… (%d bytes)", tc.s, tc.n, got, len(got), tc.want, len(tc.want))
+		}
 	}
 }
 

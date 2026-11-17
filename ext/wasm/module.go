@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"crypto/rand"
+	"encoding/binary"
 	"errors"
 	"fmt"
 	"strings"
@@ -98,14 +99,32 @@ func describe(ctx context.Context, rt wazero.Runtime, mod wazero.CompiledModule,
 // writes it, Rust too unless stripped), or "". C is skipped: it's WASI's libc in a Rust or Zig program (Zig names
 // only C99), not what the plugin was written in.
 func producersLanguage(b []byte) string {
-	r := &leb{b: b}
-	fields := r.uint()
-	for range min(fields, 16) {
-		field := r.str()
-		values := r.uint()
-		for range min(values, 32) {
-			name, _ := r.str(), r.str()
-			if field == "language" && name != "" && !isC(name) && validLanguage.MatchString(name) && r.ok {
+	// the section is LEB128 counts (binary.Uvarint) and length-prefixed strings; ok turns false past the end, for good
+	ok := true
+	num := func() uint64 {
+		v, n := binary.Uvarint(b)
+		if n <= 0 {
+			b, ok = nil, false
+			return 0
+		}
+		b = b[n:]
+		return v
+	}
+	str := func() string {
+		n := num()
+		if !ok || n > uint64(len(b)) {
+			b, ok = nil, false
+			return ""
+		}
+		s := string(b[:n])
+		b = b[n:]
+		return s
+	}
+	for range min(num(), 16) {
+		field := str()
+		for range min(num(), 32) {
+			name, _ := str(), str()
+			if field == "language" && ok && name != "" && !isC(name) && validLanguage.MatchString(name) {
 				return name
 			}
 		}
@@ -115,42 +134,6 @@ func producersLanguage(b []byte) string {
 
 func isC(lang string) bool {
 	return lang == "C" || (len(lang) > 1 && lang[0] == 'C' && (lang[1] >= '0' && lang[1] <= '9' || lang[1] == '+'))
-}
-
-// leb reads the producers section's LEB128 numbers and length-prefixed strings; ok turns false past the end.
-type leb struct {
-	b  []byte
-	ok bool
-}
-
-func (r *leb) uint() uint64 {
-	var v uint64
-	for shift := 0; shift < 64; shift += 7 {
-		if len(r.b) == 0 {
-			r.b, r.ok = nil, false
-			return 0
-		}
-		c := r.b[0]
-		r.b = r.b[1:]
-		v |= uint64(c&0x7f) << shift
-		if c < 0x80 {
-			r.ok = true
-			return v
-		}
-	}
-	r.ok = false
-	return 0
-}
-
-func (r *leb) str() string {
-	n := r.uint()
-	if !r.ok || n > uint64(len(r.b)) {
-		r.b, r.ok = nil, false
-		return ""
-	}
-	s := string(r.b[:n])
-	r.b = r.b[n:]
-	return s
 }
 
 // checkModule refuses a module that isn't a plugin: one that imports anything but WASI (built for host functions

@@ -8,6 +8,7 @@ import (
 	"io/fs"
 	"strings"
 	"time"
+	"unicode/utf8"
 
 	"github.com/tetratelabs/wazero/sys"
 )
@@ -61,11 +62,9 @@ func (h *Host) run(ctx context.Context, name, function string, input []byte) ([]
 // running took. On an error, whatever the call got to.
 type report struct {
 	stdout           []byte
-	stderr           string // up to maxReportedStderr
+	stderr           string // up to maxStderr: runModule keeps no more
 	compile, running time.Duration
 }
-
-const maxReportedStderr = 64 << 10
 
 // runReport is run, with the call's report.
 func (h *Host) runReport(ctx context.Context, name, function string, input []byte) (report, error) {
@@ -79,9 +78,9 @@ func (h *Host) runReport(ctx context.Context, name, function string, input []byt
 
 	// at most MaxConcurrent calls at once, their modules at most MaxModulesMB together (compiling included), so memory
 	// stays bounded: wait for room, up to Timeout
-	wait := time.NewTimer(h.cfg.Timeout)
-	defer wait.Stop()
-	release, err := h.take(ctx, p.size, wait.C)
+	waitCtx, cancel := context.WithTimeoutCause(ctx, h.cfg.Timeout, errWaited)
+	release, err := h.take(waitCtx, p.size)
+	cancel() // the wait only: the call itself runs on ctx
 	if err != nil {
 		return report{}, h.busy(p, err)
 	}
@@ -94,8 +93,9 @@ var errWaited = errors.New("waited too long")
 
 // take waits for room for a call of a module of size bytes: fewer than MaxConcurrent calls running, and size left
 // in MaxModulesMB. A call goes in whenever there's room for it, so a small one doesn't queue behind a big one that's
-// waiting. It returns the function that gives the room back, or errWaited or ctx's error when wait or ctx ends first.
-func (h *Host) take(ctx context.Context, size int, wait <-chan time.Time) (release func(), err error) {
+// waiting. It returns the function that gives the room back, or ctx's cause (errWaited for the wait's own limit)
+// when ctx ends first.
+func (h *Host) take(ctx context.Context, size int) (release func(), err error) {
 	for {
 		h.slotMu.Lock()
 		if h.running < h.cfg.MaxConcurrent && h.bytes+size <= h.cfg.MaxModulesMB<<20 {
@@ -115,10 +115,8 @@ func (h *Host) take(ctx context.Context, size int, wait <-chan time.Time) (relea
 		h.slotMu.Unlock()
 		select {
 		case <-freed:
-		case <-wait:
-			return nil, errWaited
 		case <-ctx.Done():
-			return nil, ctx.Err()
+			return nil, context.Cause(ctx)
 		}
 	}
 }
@@ -196,11 +194,11 @@ func (p *plugin) call(ctx context.Context, function string, input []byte) (repor
 	ctx, cancel := context.WithTimeout(ctx, h.cfg.Timeout)
 	defer cancel()
 	r := runModule(ctx, rt, mod, p.name, function, input, h.cfg.MaxPayload)
-	rep := report{stderr: r.stderr[:min(len(r.stderr), maxReportedStderr)], compile: compiled,
-		running: time.Since(start) - compiled}
+	rep := report{stderr: r.stderr, compile: compiled, running: time.Since(start) - compiled}
 	attrs := []any{"plugin", p.name, "function", function, "compile", compiled.String(), "run", rep.running.String()}
-	if s := strings.TrimSpace(r.stderr); s != "" {
-		attrs = append(attrs, "stderr", s[:min(len(s), maxLoggedStderr)])
+	logged := strings.TrimSpace(r.stderr) != "" // what it wrote to stderr is its log
+	if logged {
+		attrs = append(attrs, "stderr", truncate(strings.TrimSpace(r.stderr), maxLoggedStderr))
 	}
 	if e := p.explain(ctx, r); e != nil {
 		if e.Code == CodeCrashed && outOfMemory(e.Message+"\n"+r.stderr) {
@@ -209,8 +207,8 @@ func (p *plugin) call(ctx context.Context, function string, input []byte) (repor
 		h.app.Logger().Warn("wasm: plugin call failed", append(attrs, "code", e.Code, "error", e.Message)...)
 		return rep, e
 	}
-	if len(attrs) > 8 {
-		h.app.Logger().Info("wasm: plugin call", attrs...) // what it wrote to stderr: its log
+	if logged {
+		h.app.Logger().Info("wasm: plugin call", attrs...)
 	} else {
 		h.app.Logger().Debug("wasm: plugin call", attrs...)
 	}
@@ -249,7 +247,7 @@ func (p *plugin) explain(ctx context.Context, r result) *Error {
 		case goCrash(stderr) != "": // a Go plugin's panic or fatal error: exit code 2, the reason on stderr
 			e.Code, e.Message = CodeCrashed, goCrash(stderr)
 		case stderr != "":
-			e.Code, e.Message = CodePluginError, stderr[:min(len(stderr), maxMessage)]
+			e.Code, e.Message = CodePluginError, truncate(stderr, maxMessage)
 		default:
 			e.Code, e.Message = CodePluginError, fmt.Sprintf("exited with code %d", r.exitCode)
 		}
@@ -268,7 +266,7 @@ func (p *plugin) explain(ctx context.Context, r result) *Error {
 					break
 				}
 			}
-			e.Message = line[:min(len(line), maxMessage)] + " (" + e.Message + ")"
+			e.Message = truncate(line, maxMessage) + " (" + e.Message + ")"
 		}
 	}
 	return e
@@ -280,10 +278,21 @@ func goCrash(stderr string) string {
 		i := strings.Index(stderr, prefix)
 		if i == 0 || (i > 0 && stderr[i-1] == '\n') {
 			line, _, _ := strings.Cut(stderr[i:], "\n")
-			return line[:min(len(line), maxMessage)]
+			return truncate(line, maxMessage)
 		}
 	}
 	return ""
+}
+
+// truncate is s cut to at most n bytes, never inside a UTF-8 character.
+func truncate(s string, n int) string {
+	if len(s) <= n {
+		return s
+	}
+	for n > 0 && !utf8.RuneStart(s[n]) {
+		n--
+	}
+	return s[:n]
 }
 
 // outOfMemory is whether a crash says the program ran out of memory: Go's "fatal error: out of memory", Rust's
