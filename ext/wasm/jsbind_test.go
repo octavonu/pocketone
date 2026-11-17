@@ -24,16 +24,16 @@ import (
 // hooks is what a programmer writes in pb_hooks: the plugin gets what the hook gives it, the hook decides what to
 // save. Errors are caught (results) or not (strict: the save fails).
 const hooks = `
-onRecordCreate((e) => {
-  const out = $wasm.run("basic", { text: e.record.get("title") })
+onRecordCreate(async (e) => {
+  const out = await $wasm.run.async("basic", { text: e.record.get("title") })
   e.record.set("summary", out.text)
   e.record.set("words", out.words)
-  e.next()
+  return e.next()
 }, "posts")
 
-onRecordCreate((e) => {
+onRecordCreate(async (e) => {
   try {
-    const out = $wasm.call(e.record.get("plugin"), e.record.get("fn"), { text: "x" })
+    const out = await $wasm.call.async(e.record.get("plugin"), e.record.get("fn"), { text: "x" })
     e.record.set("result", JSON.stringify(out))
   } catch (err) {
     e.record.set("name", err.name)
@@ -43,15 +43,15 @@ onRecordCreate((e) => {
     e.record.set("plugin", err.plugin)
   }
   e.record.set("plugins", JSON.stringify($wasm.plugins().filter((p) => p.running).map((p) => p.name)))
-  e.next()
+  return e.next()
 }, "results")
 
-onRecordCreate((e) => {
-  $wasm.run(e.record.get("plugin"), {})
-  e.next()
+onRecordCreate(async (e) => {
+  await $wasm.run.async(e.record.get("plugin"), {})
+  return e.next()
 }, "strict")
 
-// .async: the plugin runs off the app's JS VM, the hook awaits it
+// the plugin's stderr, through inspect
 onRecordCreate(async (e) => {
   try {
     const out = await $wasm.call.async(e.record.get("plugin"), e.record.get("fn"), { text: e.record.get("title") })
@@ -64,7 +64,7 @@ onRecordCreate(async (e) => {
   return e.next()
 }, "awaits")
 
-onRecordCreate((e) => {
+onRecordCreate(async (e) => {
   const inputs = {
     string: "UNB+UNOA:2'",
     bytes: new Uint8Array([85, 78, 66]),
@@ -73,9 +73,9 @@ onRecordCreate((e) => {
     none: null,
     object: { a: 1 },
   }
-  const out = $wasm.call("basic", "echo", inputs[e.record.get("kind")])
+  const out = await $wasm.call.async("basic", "echo", inputs[e.record.get("kind")])
   e.record.set("result", typeof out + " " + JSON.stringify(out))
-  e.next()
+  return e.next()
 }, "echoes")
 `
 
@@ -139,8 +139,8 @@ func create(t *testing.T, app core.App, coll string, data map[string]any) (*core
 }
 
 // TestJSHooks: $wasm from real pb_hooks, plain and under the sandbox: a computed field set before the save,
-// $wasm.call and $wasm.plugins(), the .async twins in an async hook, every error as a WasmError exception with its code, how inputs (string, bytes,
-// buffer, null, object) and outputs (JSON, text, empty) cross over, and an uncaught error failing the save.
+// $wasm.call.async and $wasm.plugins(), every error as a WasmError rejection with its code, how inputs (string,
+// bytes, buffer, null, object) and outputs (JSON, text, empty) cross over, and an uncaught error failing the save.
 func TestJSHooks(t *testing.T) {
 	for _, sandboxed := range []bool{false, true} {
 		name := "plain"
@@ -178,7 +178,7 @@ func TestJSHooks(t *testing.T) {
 				}
 			}
 
-			// $wasm.call: another declared function, output parsed
+			// $wasm.call.async: another declared function, output parsed
 			r := result("basic", "counter")
 			if r.GetString("result") != `{"count":1}` || r.GetString("code") != "" {
 				t.Fatalf("counter: %q %q", r.GetString("result"), r.GetString("code"))
@@ -218,7 +218,7 @@ func TestJSHooks(t *testing.T) {
 				}
 			}
 
-			// .async: the same results, awaited
+			// another hook: the same results, and the plugin's stderr through inspect
 			for _, tc := range []struct{ plugin, fn, want string }{
 				{"basic", "run", `{"text":"ASYNC HI","words":2}`},
 				{"basic", "fail", "WasmError rate_limited"},
@@ -230,7 +230,7 @@ func TestJSHooks(t *testing.T) {
 				}
 				r, _ = e.app.FindRecordById("awaits", r.Id)
 				if r.GetString("result") != tc.want || r.GetString("stderr") != "working on it\n" {
-					t.Errorf("%s.%s async: %q %q, want %s", tc.plugin, tc.fn, r.GetString("result"), r.GetString("stderr"), tc.want)
+					t.Errorf("%s.%s: %q %q, want %s", tc.plugin, tc.fn, r.GetString("result"), r.GetString("stderr"), tc.want)
 				}
 			}
 
@@ -246,49 +246,21 @@ func TestJSHooks(t *testing.T) {
 	}
 }
 
-// TestLoopInHook: a hook that calls a plugin in an endless loop is stopped by the engine's wall-time limit per task
-// (TaskWall, Go calls included; pocker sets it from the sandbox's limit), and the plugin keeps working for everyone
-// else.
-func TestLoopInHook(t *testing.T) {
-	// ext/jsvm checks its time limits in QuickJS's interrupt handler, which runs only every several thousand JS
-	// operations: a loop over a Go call that takes milliseconds reaches it after minutes, not after TaskWall (a loop
-	// over a 20 ms Go function ran 20 s and more with TaskWall 1 s). An engine matter, for Ben; until then this
-	// can't pass.
-	t.Skip("ext/jsvm: TaskWall doesn't stop a loop over slow Go calls (interrupt handler runs every ~10k ops)")
-	code := module(t, basic)
-	e := newApp(t, wasm.Config{}, func(app core.App, pluginDir string) {
-		c := core.NewBaseCollection("loops")
-		c.Fields.Add(&core.TextField{Name: "title"})
-		if err := app.Save(c); err != nil {
-			t.Fatal(err)
+// TestAsyncOnly: run, call and inspect are async only; called without .async, each throws and says how to call it.
+func TestAsyncOnly(t *testing.T) {
+	e := withBasic(t, wasm.Config{})
+	for _, tc := range []struct{ src, want string }{
+		{`$wasm.run("basic", {})`, "$wasm.run is async only: use await $wasm.run.async(name, input) in an async hook"},
+		{`$wasm.call("basic", "run", {})`, "$wasm.call is async only: use await $wasm.call.async(name, function, input)"},
+		{`$wasm.inspect("basic", "run", {})`, "$wasm.inspect is async only: use await $wasm.inspect.async(name, function, input)"},
+	} {
+		_, err := jsEval(t, e.app, tc.src)
+		if err == nil || !strings.Contains(err.Error(), tc.want) {
+			t.Errorf("%s: %v", tc.src, err)
 		}
-		install(t, pluginDir, "basic", code)
-		dir := t.TempDir()
-		hooksDir := filepath.Join(dir, "pb_hooks")
-		os.MkdirAll(hooksDir, 0o755)
-		os.WriteFile(filepath.Join(hooksDir, "loop.pb.js"), []byte(`
-onRecordCreate((e) => {
-  while (true) { $wasm.run("basic", { text: "x" }) }
-}, "loops")`), 0o644)
-		if err := jsvm.Register(app, jsvm.Config{
-			HooksDir:   hooksDir,
-			OnInit:     func(rt js.Runtime) { wasm.BindJS(app, rt) },
-			Extensions: []any{&sandbox.Sandbox{Dir: dir, MaxExecution: time.Second}},
-			VM:         jsvm.VMConfig{TaskWall: time.Second}, // as pocker sets the sandbox's limit
-		}); err != nil {
-			t.Fatal(err)
-		}
-	})
-	start := time.Now()
-	_, err := create(t, e.app, "loops", map[string]any{"title": "x"})
-	if err == nil {
-		t.Fatalf("save: %v", err)
 	}
-	if d := time.Since(start); d > 3*time.Second {
-		t.Fatalf("stopped after %s", d)
-	}
-	if !runs(t, e, "basic") {
-		t.Fatal("the plugin stopped working")
+	if out, err := jsEval(t, e.app, `$wasm.run.async("basic", { text: "still works" }).then((o) => o.text)`); err != nil || out != "STILL WORKS" {
+		t.Fatalf("async: %q %v", out, err)
 	}
 }
 
@@ -303,16 +275,16 @@ func TestBindBeforeRegister(t *testing.T) {
 	t.Cleanup(app.Cleanup)
 	dir := t.TempDir()
 	os.WriteFile(filepath.Join(dir, "main.pb.js"), []byte(`
-onRecordCreate((e) => { e.record.set("summary", $wasm.run("basic", { text: e.record.get("title") }).text); e.next() }, "posts")`), 0o644)
+onRecordCreate(async (e) => { e.record.set("summary", (await $wasm.run.async("basic", { text: e.record.get("title") })).text); return e.next() }, "posts")`), 0o644)
 	pluginDir := t.TempDir()
-	p := wasm.New(wasm.Config{Dir: pluginDir})
+	w := wasm.New(wasm.Config{Dir: pluginDir})
 	if err := jsvm.Register(app, jsvm.Config{
 		HooksDir: dir,
-		OnInit:   func(rt js.Runtime) { extkit.BindJS(app, rt, p) }, // the engine starts before MustRegister
+		OnInit:   func(rt js.Runtime) { extkit.BindJS(app, rt, w) }, // the engine starts before MustRegister
 	}); err != nil {
 		t.Fatal(err)
 	}
-	extkit.MustRegister(app, p)
+	extkit.MustRegister(app, w)
 
 	c := core.NewBaseCollection("posts")
 	c.Fields.Add(&core.TextField{Name: "title"}, &core.TextField{Name: "summary"})
@@ -337,16 +309,16 @@ onRecordCreate((e) => { e.record.set("summary", $wasm.run("basic", { text: e.rec
 	}
 }
 
-// TestInspect: $wasm.inspect never throws for the call: it returns the output, what the plugin wrote to stderr, the
+// TestInspect: $wasm.inspect.async never rejects for the call: it returns the output, what the plugin wrote to stderr, the
 // error as plain fields, and how long compiling and running took.
 func TestInspect(t *testing.T) {
 	e := withBasic(t, wasm.Config{})
-	text, err := jsEval(t, e.app, `JSON.stringify([
-		$wasm.inspect("basic", "logs", ""),
-		$wasm.inspect("basic", "fail", ""),
-		$wasm.inspect("basic", "echo", { a: 1 }),
-		$wasm.inspect("nope", "run", {}),
-	])`)
+	text, err := jsEval(t, e.app, `Promise.all([
+		$wasm.inspect.async("basic", "logs", ""),
+		$wasm.inspect.async("basic", "fail", ""),
+		$wasm.inspect.async("basic", "echo", { a: 1 }),
+		$wasm.inspect.async("nope", "run", {}),
+	]).then(JSON.stringify)`)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -380,7 +352,8 @@ func TestInspect(t *testing.T) {
 	}
 }
 
-// jsEval runs src on a JS VM with $wasm bound to app, and returns its value as a string.
+// jsEval runs src, an expression, on a JS VM with $wasm bound to app, and returns its value as a string, awaited
+// when it's a promise.
 func jsEval(t *testing.T, app core.App, src string) (string, error) {
 	t.Helper()
 	vm, err := jsvm.New(jsvm.VMConfig{}, nil)
@@ -388,14 +361,18 @@ func jsEval(t *testing.T, app core.App, src string) (string, error) {
 		t.Fatal(err)
 	}
 	t.Cleanup(vm.Close)
-	var out string
+	var f js.Func
 	err = vm.Run(func(rt js.Runtime) error {
 		wasm.BindJS(app, rt)
-		v, err := rt.Eval(src, "test.js")
+		v, err := rt.Eval("(async () => "+src+")", "test.js")
 		if err == nil {
-			out = v.String()
+			f = v.Func()
 		}
 		return err
 	})
-	return out, err
+	if err != nil {
+		return "", err
+	}
+	out, err := f.Call()
+	return fmt.Sprint(out), err
 }

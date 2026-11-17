@@ -57,7 +57,7 @@ func (h *Host) run(ctx context.Context, name, function string, input []byte) ([]
 	return r.stdout, err
 }
 
-// report is what one call left, for $wasm.inspect: its output, what it wrote to stderr, and how long compiling and
+// report is what one call left, for $wasm.inspect.async: its output, what it wrote to stderr, and how long compiling and
 // running took. On an error, whatever the call got to.
 type report struct {
 	stdout           []byte

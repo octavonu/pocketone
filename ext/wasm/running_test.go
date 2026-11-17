@@ -24,8 +24,10 @@ func TestLimits(t *testing.T) {
 		}
 	}
 
-	got, err := jsEval(t, e.app, `const l = $wasm.limits(), b = $wasm.plugins().find((p) => p.name === "big");
-		JSON.stringify([l.maxConcurrent, l.maxModulesMB, l.timeoutMs, l.maxCallMemoryMB, l.maxPayload, b.size > 1 << 20])`)
+	got, err := jsEval(t, e.app, `(() => {
+		const l = $wasm.limits(), b = $wasm.plugins().find((p) => p.name === "big")
+		return JSON.stringify([l.maxConcurrent, l.maxModulesMB, l.timeoutMs, l.maxCallMemoryMB, l.maxPayload, b.size > 1 << 20])
+	})()`)
 	if err != nil {
 		t.Fatal(err)
 	}

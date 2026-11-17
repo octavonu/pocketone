@@ -314,7 +314,7 @@ func TestLoadAndStatus(t *testing.T) {
 	if _, err := call(t, e, "plain", "counter", nil); err != nil { // not in the defaults, but the plugin has it
 		t.Fatal(err)
 	}
-	out, err := e.h.Call(context.Background(), "basic", "--describe", nil) // what $wasm.call(name, "--describe") gives
+	out, err := e.h.Call(context.Background(), "basic", "--describe", nil) // what $wasm.call.async(name, "--describe") gives
 	if err != nil || !strings.Contains(string(out), `"version": "1.0.0"`) {
 		t.Fatalf("--describe: %s, %v", out, err)
 	}
@@ -378,8 +378,8 @@ func TestSettings(t *testing.T) {
 				t.Fatal(err)
 			}
 			defer app.Cleanup()
-			p := wasm.New(wasm.Config{MaxCallMemoryMB: 64, MaxConcurrent: 3, Timeout: 2 * time.Second})
-			if err := p.Register(app, tc.layers); err != nil {
+			w := wasm.New(wasm.Config{MaxCallMemoryMB: 64, MaxConcurrent: 3, Timeout: 2 * time.Second})
+			if err := w.Register(app, tc.layers); err != nil {
 				t.Fatal(err)
 			}
 			got := wasm.For(app).Config()

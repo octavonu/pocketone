@@ -15,10 +15,10 @@ processes; your hook gives it what it needs and decides what to do with the resu
 
 ```js
 // pb_hooks/main.pb.js
-onRecordCreate((e) => {
-  const out = $wasm.run("summary", { title: e.record.get("title"), body: e.record.get("body") })
+onRecordCreate(async (e) => {
+  const out = await $wasm.run.async("summary", { title: e.record.get("title"), body: e.record.get("body") })
   e.record.set("summary", out.text)
-  e.next()
+  return e.next()
 }, "posts")
 ```
 
@@ -40,11 +40,11 @@ set := standard.New().Add(wasm.New(wasm.Config{})) // $wasm in pb_hooks
 Without the set, register it and bind it yourself:
 
 ```go
-p := wasm.New(wasm.Config{})
+w := wasm.New(wasm.Config{})
 
 app := pocketbase.New()
-extkit.MustRegister(app, p)
-jsvm.MustRegister(app, jsvm.Config{OnInit: func(rt js.Runtime) { extkit.BindJS(app, rt, p) }})
+extkit.MustRegister(app, w)
+jsvm.MustRegister(app, jsvm.Config{OnInit: func(rt js.Runtime) { extkit.BindJS(app, rt, w) }})
 app.Start()
 ```
 
@@ -118,7 +118,7 @@ nothing gets the defaults:
 | `functions` | the functions hooks may call (default `["run"]`) |
 | `language` | what it's written in, shown when the module doesn't say: a Go module always does, a Rust one unless it's stripped (`strip = true`), a Zig one never |
 | `repository` | where its source is: an `http(s)` URL (no `javascript:`, no credentials), at most 256 characters |
-| `examples` | up to 16 calls to try it with: `function` (default `run`), `input` (a JSON string is the plugin's stdin as it is, anything else goes as JSON, as with `$wasm.run`) and, optionally, the `output` it gives |
+| `examples` | up to 16 calls to try it with: `function` (default `run`), `input` (a JSON string is the plugin's stdin as it is, anything else goes as JSON, as with `$wasm.run.async`) and, optionally, the `output` it gives |
 
 The manifest is only shown, by `$wasm.plugins()`, for people and for tests (run each example and compare its
 output): calls don't read it, nothing runs the examples, and nothing fetches the repository. A function that isn't
@@ -136,25 +136,27 @@ with wazero's interpreter (below), within the plugin's limits.
 ### Calling from pb_hooks
 
 ```js
-$wasm.run(name, input)            // the plugin's "run"
-$wasm.call(name, function, input) // one of its functions (its first argument)
-$wasm.plugins()                   // [{name, running, description, version, functions, language, repository, examples,
-                                  //   size, error}]
-$wasm.limits()                    // {maxCallMemoryMB, timeoutMs, maxConcurrent, maxModulesMB, maxPayload}
-$wasm.inspect(name, function, input) // {output, stderr, error, compileMs, runMs}, for trying a plugin out
-
-await $wasm.run.async(name, input) // the same, off the app's JS VM; also $wasm.call.async, $wasm.inspect.async
+await $wasm.run.async(name, input)            // the plugin's "run"
+await $wasm.call.async(name, function, input) // one of its functions (its first argument)
+await $wasm.inspect.async(name, function, input) // {output, stderr, error, compileMs, runMs}, for trying a plugin out
+$wasm.plugins()  // [{name, running, description, version, functions, language, repository, examples, size, error}]
+$wasm.limits()   // {maxCallMemoryMB, timeoutMs, maxConcurrent, maxModulesMB, maxPayload}
 ```
 
+Calls are async only, in an async hook. The JS engine runs one VM per app and can't interrupt a call into Go, so a
+plugin called synchronously would hold the VM, and with it every other hook and request of the app, while it compiles
+and runs (a Go plugin compiles for over a second each call). A call runs off the VM instead, and the app serves other
+requests meanwhile. `$wasm.run(...)` without `.async` throws, saying so.
+
 The input is the plugin's stdin: a string or bytes (an `ArrayBuffer`, a `Uint8Array` or another typed array) as they are, nothing for
-`undefined` or `null`, anything else as JSON. So `$wasm.run("edifact", e.record.get("raw"))` hands over the raw text,
+`undefined` or `null`, anything else as JSON. So `$wasm.run.async("edifact", e.record.get("raw"))` hands over the raw text,
 byte for byte. The output is the plugin's stdout: parsed if it's JSON, a string if not, `null` if empty.
 
-A failed call throws an `Error` named `WasmError`, with `code`, `message`, `retryable` and `plugin`:
+A failed call rejects with an `Error` named `WasmError`, with `code`, `message`, `retryable` and `plugin`:
 
 ```js
 try {
-  e.record.set("summary", $wasm.run("summary", post).text)
+  e.record.set("summary", (await $wasm.run.async("summary", post)).text)
 } catch (err) {
   if (err.name !== "WasmError" || err.code !== "empty_body") throw err
 }
@@ -172,22 +174,9 @@ try {
 | `plugin_error` | it exited non-zero without a code of its own |
 | anything else | the plugin's own code (below) |
 
-`$wasm.inspect` makes the same call but never throws for it: it returns the output (or `null`), the `error` as
-`{code, message, retryable}` (or `null`), what the plugin wrote to stderr (up to 64 KB), and how long compiling and
-running took. It's for pages that let a superuser try a plugin out; hooks use `run` and `call`.
-
-The JS engine runs one VM per app, and `run` and `call` hold it while the plugin compiles and runs: the app's
-other hooks and requests wait. That's fine for a plugin that answers in milliseconds (Rust, Zig). For a slow one (a
-Go plugin compiles for over a second each call) or many calls at once, use `.async` in an async hook, so the app
-serves other requests meanwhile:
-
-```js
-onRecordCreate(async (e) => {
-  const out = await $wasm.run.async("summary", { title: e.record.get("title"), body: e.record.get("body") })
-  e.record.set("summary", out.text)
-  return e.next()
-}, "posts")
-```
+`$wasm.inspect.async` makes the same call but never rejects for it: it returns the output (or `null`), the `error`
+as `{code, message, retryable}` (or `null`), what the plugin wrote to stderr (up to 64 KB), and how long compiling
+and running took. It's for pages that let a superuser try a plugin out; hooks use `run` and `call`.
 
 The time limit covers the run; compiling comes before it (below).
 
@@ -196,7 +185,7 @@ The time limit covers the run; compiling comes before it (below).
 ### Writing a plugin
 
 A plugin is a plain WASI program (`wasip1`), the way you'd write a command-line tool: read stdin, write stdout, exit.
-The function asked for is its first argument (`os.Args[1]`, `"run"` for `$wasm.run`, `--describe` for its manifest,
+The function asked for is its first argument (`os.Args[1]`, `"run"` for `$wasm.run.async`, `--describe` for its manifest,
 above). To fail, exit non-zero; if
 stderr is a JSON object `{"code", "message", "retryable"}`, hooks get it as is, any other text becomes the
 `message` of a `plugin_error`. Anything it writes to stderr on success goes to the app's log (Logs in the
@@ -354,11 +343,11 @@ func main() {
 		return posts(e.App)
 	})
 	// the same extension value the standard set gives every pocker instance (set.Add(wasm.New(...)))
-	plugins := wasm.New(wasm.Config{})
-	extkit.MustRegister(app, plugins)
+	w := wasm.New(wasm.Config{})
+	extkit.MustRegister(app, w)
 	jsvm.MustRegister(app, jsvm.Config{
 		HooksDir: "pb_hooks",
-		OnInit:   func(rt js.Runtime) { extkit.BindJS(app, rt, plugins) }, // $wasm in pb_hooks
+		OnInit:   func(rt js.Runtime) { extkit.BindJS(app, rt, w) }, // $wasm in pb_hooks
 	})
 	if err := app.Start(); err != nil {
 		log.Fatal(err)

@@ -24,15 +24,14 @@ type instances []pocker.Instance
 func (s instances) Snapshot(context.Context) ([]pocker.Instance, error) { return s, nil }
 func (s instances) Watch(context.Context) (<-chan pocker.Change, error) { return nil, nil }
 
-// probe is a pb_hooks route that tells what $wasm looks like in an instance, and calls a plugin both ways.
+// probe is a pb_hooks route that tells what $wasm looks like in an instance, and calls a plugin.
 const probe = `
 routerAdd("GET", "/probe", async (e) => {
   if (typeof $wasm === "undefined") return e.json(200, { wasm: "undefined" })
   const name = e.request.url.query().get("plugin")
   const out = { wasm: typeof $wasm, limits: $wasm.limits(), plugins: $wasm.plugins().map((p) => p.name) }
   try {
-    out.sync = $wasm.run(name, { text: "hi pocker" }).text
-    out.async = (await $wasm.run.async(name, { text: "hi pocker" })).text
+    out.text = (await $wasm.run.async(name, { text: "hi pocker" })).text
   } catch (err) {
     out.error = err.code
   }
@@ -78,8 +77,7 @@ func TestPocker(t *testing.T) {
 		Wasm    string
 		Limits  wasm.Limits
 		Plugins []string
-		Sync    string
-		Async   string
+		Text    string
 		Error   string
 	}
 	get := func(host, plugin string) answer {
@@ -95,13 +93,13 @@ func TestPocker(t *testing.T) {
 	check := func() {
 		t.Helper()
 		// each instance runs its own plugins, and only them
-		if a := get("a.test", "basic"); a.Sync != "HI POCKER" || a.Async != "HI POCKER" || len(a.Plugins) != 1 || a.Plugins[0] != "basic" {
+		if a := get("a.test", "basic"); a.Text != "HI POCKER" || len(a.Plugins) != 1 || a.Plugins[0] != "basic" {
 			t.Errorf("a: %+v", a)
 		}
 		if a := get("a.test", "other"); a.Error != wasm.CodeNotFound {
 			t.Errorf("a calling b's plugin: %+v", a)
 		}
-		if b := get("b.test", "other"); b.Sync != "HI POCKER" || len(b.Plugins) != 1 || b.Plugins[0] != "other" {
+		if b := get("b.test", "other"); b.Text != "HI POCKER" || len(b.Plugins) != 1 || b.Plugins[0] != "other" {
 			t.Errorf("b: %+v", b)
 		}
 		if b := get("b.test", "basic"); b.Error != wasm.CodeNotFound {

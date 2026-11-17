@@ -3,10 +3,10 @@
 // it what it needs and decide what to do with the result. pb_hooks ($wasm) are the only way to call a plugin: no
 // Go API, no endpoint, no form.
 //
-//	onRecordCreate((e) => {
-//	  const out = $wasm.run("summary", { title: e.record.get("title"), body: e.record.get("body") })
+//	onRecordCreate(async (e) => {
+//	  const out = await $wasm.run.async("summary", { title: e.record.get("title"), body: e.record.get("body") })
 //	  e.record.set("summary", out.text)
-//	  e.next()
+//	  return e.next()
 //	}, "posts")
 //
 // A plugin is a plain WASI program (wasip1: Go, Rust, Zig, C, ...): it reads its input from stdin, writes its output

@@ -35,11 +35,11 @@ func main() {
 		return posts(e.App)
 	})
 	// the same extension value the standard set gives every pocker instance (set.Add(wasm.New(...)))
-	plugins := wasm.New(wasm.Config{})
-	extkit.MustRegister(app, plugins)
+	w := wasm.New(wasm.Config{})
+	extkit.MustRegister(app, w)
 	jsvm.MustRegister(app, jsvm.Config{
 		HooksDir: "pb_hooks",
-		OnInit:   func(rt js.Runtime) { extkit.BindJS(app, rt, plugins) }, // $wasm in pb_hooks
+		OnInit:   func(rt js.Runtime) { extkit.BindJS(app, rt, w) }, // $wasm in pb_hooks
 	})
 	if err := app.Start(); err != nil {
 		log.Fatal(err)

@@ -37,7 +37,7 @@ type Manifest struct {
 	Examples    []Example `json:"examples,omitempty"`   // inputs to try it with, and what they give
 }
 
-// Example is one call to try a plugin with, the same as from pb_hooks: $wasm.call(name, function, input). A JSON
+// Example is one call to try a plugin with, the same as from pb_hooks: $wasm.call.async(name, function, input). A JSON
 // string input is the plugin's stdin as it is (raw text: EDIFACT, XML, CSV); anything else is sent as JSON.
 type Example struct {
 	Function string          `json:"function,omitempty"` // default "run"

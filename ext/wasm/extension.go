@@ -30,7 +30,7 @@ var (
 func New(cfg Config) *Extension { return &Extension{cfg: cfg} }
 
 // Name implements [extkit.Extension].
-func (p *Extension) Name() string { return Name }
+func (x *Extension) Name() string { return Name }
 
 // settings is the shape of the extension's settings layers: [Config]'s fields, with `timeout` read as "5s" (or
 // nanoseconds).
@@ -64,12 +64,12 @@ func (s settings) over(c Config) Config {
 }
 
 // Register implements [extkit.Extension]: the app's settings layers apply over the Config given to [New].
-func (p *Extension) Register(app core.App, layers extkit.Config) error {
+func (x *Extension) Register(app core.App, layers extkit.Config) error {
 	var s settings
 	if err := layers.Decode(&s); err != nil {
 		return fmt.Errorf("wasm: %w", err)
 	}
-	_, err := Register(app, s.over(p.cfg))
+	_, err := Register(app, s.over(x.cfg))
 	return err
 }
 
@@ -78,7 +78,7 @@ func (p *Extension) Register(app core.App, layers extkit.Config) error {
 //
 // The app's Host is looked up when $wasm is called, not here, so it doesn't matter whether the JS engine starts
 // before or after Register.
-func (p *Extension) BindJS(app core.App, rt js.Runtime) {
+func (x *Extension) BindJS(app core.App, rt js.Runtime) {
 	BindJS(app, rt)
 }
 
@@ -86,4 +86,4 @@ func (p *Extension) BindJS(app core.App, rt js.Runtime) {
 var jsTypes string
 
 // TypeScript implements jsvm's Typer: $wasm's declarations, added to the app's pb_data/types.d.ts.
-func (p *Extension) TypeScript() string { return jsTypes }
+func (x *Extension) TypeScript() string { return jsTypes }

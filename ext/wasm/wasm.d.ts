@@ -67,7 +67,7 @@ type WasmErrorCode =
   | "plugin_error" // the plugin exited non-zero with no code of its own
   | (string & {})
 
-/** What a failed $wasm.run or $wasm.call throws: catch it to decide what the hook does next. */
+/** What a failed $wasm.run.async or $wasm.call.async rejects with: catch it to decide what the hook does next. */
 interface WasmError extends Error {
   name: "WasmError"
   /** The plugin's name. */
@@ -77,7 +77,7 @@ interface WasmError extends Error {
   retryable: boolean
 }
 
-/** What $wasm.inspect gives: one call, with its log and its timings. */
+/** What $wasm.inspect.async gives: one call, with its log and its timings. */
 interface WasmInspection<T = any> {
   /** The output; null when the call failed or the plugin wrote nothing. */
   output: T | null
@@ -91,22 +91,17 @@ interface WasmInspection<T = any> {
 
 /**
  * The app's plugins, the pb_hooks/<name>.pb.wasm files. A plugin is a closed box: it gets its input and gives its output,
- * and reaches no database, file, network, environment or process. The call blocks the hook while the plugin runs.
+ * and reaches no database, file, network, environment or process.
+ *
+ * Calls are async only: a plugin runs off the app's JS VM while the hook awaits it, so the app serves other requests
+ * meanwhile. `$wasm.run(...)` without `.async` throws.
  *
  * The output is the plugin's stdout: JSON parsed, a string when it isn't JSON, null when it's empty.
  */
 declare namespace $wasm {
-  /**
-   * Calls the plugin's "run". Throws a {@link WasmError} when the call fails.
-   *
-   * @example
-   * const out = $wasm.run("summary", { title: e.record.get("title"), body: e.record.get("body") })
-   */
-  function run<T = any>(name: string, input?: WasmInput): T
   namespace run {
     /**
-     * {@link run}, off the app's JS VM: the app serves other requests while the plugin runs. Use it in an async hook
-     * for a slow plugin (Go) or many calls at once.
+     * Calls the plugin's "run". Rejects with a {@link WasmError} when the call fails.
      *
      * @example
      * onRecordCreate(async (e) => {
@@ -118,16 +113,19 @@ declare namespace $wasm {
     function async<T = any>(name: string, input?: WasmInput): Promise<T>
   }
 
-  /**
-   * Calls one of the plugin's functions (its first argument). Throws a {@link WasmError} when the call fails.
-   *
-   * @example
-   * const r = $wasm.call("crypto", "decrypt", { key, data })
-   */
-  function call<T = any>(name: string, fn: string, input?: WasmInput): T
   namespace call {
-    /** {@link call}, off the app's JS VM, like {@link run.async}. */
+    /**
+     * Calls one of the plugin's functions (its first argument). Rejects with a {@link WasmError} when the call fails.
+     *
+     * @example
+     * const r = await $wasm.call.async("crypto", "decrypt", { key, data })
+     */
     function async<T = any>(name: string, fn: string, input?: WasmInput): Promise<T>
+  }
+
+  namespace inspect {
+    /** Calls a function to try a plugin out: never rejects for the call, and gives its log and timings. */
+    function async<T = any>(name: string, fn: string, input?: WasmInput): Promise<WasmInspection<T>>
   }
 
   /** Every plugin in pb_hooks/ and how it's doing. */
@@ -135,11 +133,4 @@ declare namespace $wasm {
 
   /** What every call runs within: memory, time, how many calls and how many MB of modules at once. */
   function limits(): WasmLimits
-
-  /** Calls a function to try a plugin out: never throws for the call, and gives its log and timings. */
-  function inspect<T = any>(name: string, fn: string, input?: WasmInput): WasmInspection<T>
-  namespace inspect {
-    /** {@link inspect}, off the app's JS VM, like {@link run.async}. */
-    function async<T = any>(name: string, fn: string, input?: WasmInput): Promise<WasmInspection<T>>
-  }
 }

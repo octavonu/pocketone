@@ -8,4 +8,4 @@ section to that version ([Changelogs](../../docs/extensions.md#changelogs)).
 
 ### Added
 
-- `ext/wasm`: WASI plugins (Go, Rust, Zig, ...) as `pb_hooks/<name>.pb.wasm`, called from pb_hooks with `$wasm.run(name, input)`, `$wasm.call(name, fn, input)` and their `.async` forms; each describes itself (`<name> --describe`). Input in, output out, no access to the database, files, network, environment or processes.
+- `ext/wasm`: WASI plugins (Go, Rust, Zig, ...) as `pb_hooks/<name>.pb.wasm`, called from pb_hooks with `await $wasm.run.async(name, input)` and `await $wasm.call.async(name, fn, input)` (async only: a call runs off the app's JS VM); each describes itself (`<name> --describe`). Input in, output out, no access to the database, files, network, environment or processes.

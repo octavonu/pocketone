@@ -17,33 +17,33 @@ import (
 //
 // In a pb_hooks file:
 //
-//	onRecordCreate((e) => {
-//	  const out = $wasm.run("summary", { title: e.record.get("title"), body: e.record.get("body") })
+//	onRecordCreate(async (e) => {
+//	  const out = await $wasm.run.async("summary", { title: e.record.get("title"), body: e.record.get("body") })
 //	  e.record.set("summary", out.text)
-//	  e.next()
+//	  return e.next()
 //	}, "posts")
 //
-//	$wasm.run(name, input)            -> output: calls the plugin's "run"
-//	$wasm.call(name, function, input) -> output: calls one of its functions (the first argument the plugin gets)
-//	$wasm.plugins()                   -> every plugin in the folder, with what it says for --describe: {name,
-//	                                     running, description, functions, language, repository, examples, size, error}
-//	$wasm.limits()                    -> what every call runs within: {maxCallMemoryMB, timeoutMs, maxConcurrent,
-//	                                     maxModulesMB, maxPayload}
-//	$wasm.inspect(name, function, input) -> {output, stderr, error, compileMs, runMs}: call, for trying a plugin
-//	                                     out; it never throws for the call, error is {code, message, retryable}
-//	                                     or null, and stderr is what the plugin wrote there (its log)
-//
-//	await $wasm.run.async(name, input), $wasm.call.async(...), $wasm.inspect.async(...): the same, run off the
-//	                                     app's JS VM, so the app serves other requests while the plugin runs
+//	await $wasm.run.async(name, input)            -> output: calls the plugin's "run"
+//	await $wasm.call.async(name, function, input) -> output: calls one of its functions (the first argument the
+//	                                                 plugin gets)
+//	await $wasm.inspect.async(name, function, input) -> {output, stderr, error, compileMs, runMs}: call, for trying
+//	                                                 a plugin out; it never throws for the call, error is {code,
+//	                                                 message, retryable} or null, and stderr is what the plugin
+//	                                                 wrote there (its log)
+//	$wasm.plugins()                               -> every plugin in the folder, with what it says for --describe:
+//	                                                 {name, running, description, functions, language, repository,
+//	                                                 examples, size, error}
+//	$wasm.limits()                                -> what every call runs within: {maxCallMemoryMB, timeoutMs,
+//	                                                 maxConcurrent, maxModulesMB, maxPayload}
 //
 // The input is the plugin's stdin: a string or bytes (an ArrayBuffer, a typed array, a []byte from Go) as they are,
 // nothing for undefined or null, anything else as JSON. The output is the plugin's stdout: JSON parsed, or a string
-// if it isn't JSON, null if empty. A failed call throws an Error named WasmError, with code, message, retryable and plugin (see
-// the Code* constants and Error): catch it to decide what the hook does next.
+// if it isn't JSON, null if empty. A failed call rejects with an Error named WasmError, with code, message, retryable
+// and plugin (see the Code* constants and Error): catch it to decide what the hook does next.
 //
-// The JS engine runs one VM per app. A sync call holds it for as long as the plugin runs, up to the Timeout in
-// Config, so the app's other hooks and requests wait: fine for a plugin that answers in milliseconds (Rust, Zig).
-// For a slow one (a Go plugin compiles for over a second), or many calls at once, use .async in an async hook.
+// Calls are async only. The JS engine runs one VM per app, and it can't interrupt a call into Go: a plugin called
+// synchronously would hold the VM, and with it the app's every other hook and request, for as long as it runs. So a
+// call runs off the VM and the hook awaits it; $wasm.run(...) without .async throws, saying so.
 func BindJS(app core.App, rt js.Runtime) {
 	get := func() (*Host, error) {
 		if h := For(app); h != nil {
@@ -108,8 +108,8 @@ func BindJS(app core.App, rt js.Runtime) {
 const nativeGlobal = "__pocketone_wasm"
 
 // jsPrelude builds $wasm over the Go functions, which it takes off the global scope: it passes the input on (a
-// typed array as its bytes), parses the output, and throws a WasmError. run, call and inspect each have an .async
-// twin that runs the plugin off the app's JS VM, so the app serves other requests meanwhile.
+// typed array as its bytes), parses the output, and throws a WasmError. run, call and inspect are async only: each
+// is .async (the engine's twin of a Go function, run off the app's JS VM), and calling it without .async throws.
 const jsPrelude = `(() => {
   const native = globalThis.` + nativeGlobal + `;
   delete globalThis.` + nativeGlobal + `;
@@ -145,14 +145,13 @@ const jsPrelude = `(() => {
     return { output: e ? null : output(r.output), error: e ? { code: e.code, message: e.message, retryable: e.retryable } : null,
       stderr: r.stderr, compileMs: r.compileMs, runMs: r.runMs };
   };
-  const both = (sync, async) => Object.defineProperty(sync, "async", { value: async });
+  const asyncOnly = (name, args, fn) => Object.defineProperty(() => {
+    throw new Error("$wasm." + name + " is async only: use await $wasm." + name + ".async(" + args + ") in an async hook");
+  }, "async", { value: fn });
   globalThis.$wasm = Object.freeze({
-    run: both((name, v) => result(native.call(...args(name, "run", v))),
-      async (name, v) => result(await native.call.async(...args(name, "run", v)))),
-    call: both((name, fn, v) => result(native.call(...args(name, fn, v))),
-      async (name, fn, v) => result(await native.call.async(...args(name, fn, v)))),
-    inspect: both((name, fn, v) => report(native.inspect(...args(name, fn, v))),
-      async (name, fn, v) => report(await native.inspect.async(...args(name, fn, v)))),
+    run: asyncOnly("run", "name, input", async (name, v) => result(await native.call.async(...args(name, "run", v)))),
+    call: asyncOnly("call", "name, function, input", async (name, fn, v) => result(await native.call.async(...args(name, fn, v)))),
+    inspect: asyncOnly("inspect", "name, function, input", async (name, fn, v) => report(await native.inspect.async(...args(name, fn, v)))),
     plugins: () => JSON.parse(native.plugins()),
     limits: () => JSON.parse(native.limits()),
   });
