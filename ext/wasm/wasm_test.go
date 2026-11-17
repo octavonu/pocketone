@@ -23,7 +23,7 @@ import (
 
 const basic = "testdata/basic"
 
-// install puts a plugin in the plugin folder, as a copy, a deploy or an SFTP upload would: <name>.pb.wasm.
+// install puts a module in the module folder, as a copy, a deploy or an SFTP upload would: <name>.pb.wasm.
 func install(t *testing.T, dir, name string, code []byte) {
 	t.Helper()
 	if err := os.WriteFile(filepath.Join(dir, name+".pb.wasm"), code, 0o644); err != nil {
@@ -34,11 +34,11 @@ func install(t *testing.T, dir, name string, code []byte) {
 type env struct {
 	app *tests.TestApp
 	h   *wasm.Host
-	dir string // the plugin folder
+	dir string // the module folder
 }
 
-// newApp is an app with ext/wasm, serving, its plugin folder a fresh temp dir (unless cfg says otherwise). before
-// runs ahead of serving; plugins put in the folder later are there for the next call too.
+// newApp is an app with ext/wasm, serving, its module folder a fresh temp dir (unless cfg says otherwise). before
+// runs ahead of serving; modules put in the folder later are there for the next call too.
 func newApp(t *testing.T, cfg wasm.Config, before func(app core.App, dir string)) env {
 	t.Helper()
 	app, err := tests.NewTestApp(t.TempDir())
@@ -69,7 +69,7 @@ func newApp(t *testing.T, cfg wasm.Config, before func(app core.App, dir string)
 	return env{app: app, h: h, dir: cfg.Dir}
 }
 
-// withBasic is an app serving the basic test plugin as "basic".
+// withBasic is an app serving the basic test module as "basic".
 func withBasic(t *testing.T, cfg wasm.Config) env {
 	t.Helper()
 	code := module(t, basic)
@@ -78,10 +78,10 @@ func withBasic(t *testing.T, cfg wasm.Config) env {
 	})
 }
 
-// info is how the plugin called name is doing; ok false if the folder has none.
+// info is how the module called name is doing; ok false if the folder has none.
 func info(t *testing.T, e env, name string) (wasm.Info, bool) {
 	t.Helper()
-	for _, i := range e.h.Plugins() {
+	for _, i := range e.h.Modules() {
 		if i.Name == name {
 			return i, true
 		}
@@ -117,7 +117,7 @@ func wantCode(t *testing.T, err *wasm.Error, code string) {
 	}
 }
 
-// TestInputOutput: the input goes to the plugin's stdin as JSON, and what it writes to stdout comes back.
+// TestInputOutput: the input goes to the module's stdin as JSON, and what it writes to stdout comes back.
 func TestInputOutput(t *testing.T) {
 	e := withBasic(t, wasm.Config{})
 	out, err := call(t, e, "basic", "run", map[string]string{"text": "hello wasm world"})
@@ -129,7 +129,7 @@ func TestInputOutput(t *testing.T) {
 	}
 }
 
-// TestTruncate: a plugin's message, cut to the size limit, is cut before a character, never inside one: in UTF-8,
+// TestTruncate: a module's message, cut to the size limit, is cut before a character, never inside one: in UTF-8,
 // "ă" is 2 bytes and "😀" 4, and half a character would reach JS as "�".
 func TestTruncate(t *testing.T) {
 	for _, tc := range []struct {
@@ -158,27 +158,27 @@ func TestTruncate(t *testing.T) {
 	}
 }
 
-// TestErrors: every way a call can fail gives a WasmError with its code: the plugin's own code and message (exit
-// non-zero with {"code", "message"} on stderr), plugin_error for a plain message or none, crashed for a panic,
-// no_such_function from a plugin that doesn't have the function, not_found for a missing plugin. The plugin still
+// TestErrors: every way a call can fail gives a WasmError with its code: the module's own code and message (exit
+// non-zero with {"code", "message"} on stderr), module_error for a plain message or none, crashed for a panic,
+// no_such_function from a module that doesn't have the function, not_found for a missing module. The module still
 // works after all of them.
 func TestErrors(t *testing.T) {
 	e := withBasic(t, wasm.Config{})
 
 	_, err := call(t, e, "basic", "fail", nil)
 	wantCode(t, err, "rate_limited")
-	if err.Message != "try again later" || !err.Retryable || err.Plugin != "basic" {
+	if err.Message != "try again later" || !err.Retryable || err.Module != "basic" {
 		t.Fatalf("structured error: %+v", err)
 	}
 
 	_, err = call(t, e, "basic", "failPlain", nil)
-	wantCode(t, err, wasm.CodePluginError)
+	wantCode(t, err, wasm.CodeModuleError)
 	if err.Message != "something broke" || err.Retryable {
 		t.Fatalf("plain error: %+v", err)
 	}
 
 	_, err = call(t, e, "basic", "failSilent", nil)
-	wantCode(t, err, wasm.CodePluginError)
+	wantCode(t, err, wasm.CodeModuleError)
 	if err.Message != "exited with code 7" {
 		t.Fatalf("silent error: %+v", err)
 	}
@@ -190,22 +190,22 @@ func TestErrors(t *testing.T) {
 	}
 
 	_, err = call(t, e, "basic", "run", "not an object")
-	wantCode(t, err, wasm.CodePluginError)
+	wantCode(t, err, wasm.CodeModuleError)
 
-	_, err = call(t, e, "basic", "nosuch", nil) // the plugin's own answer, by convention
+	_, err = call(t, e, "basic", "nosuch", nil) // the module's own answer, by convention
 	wantCode(t, err, wasm.CodeNoSuchFunction)
 
 	_, err = call(t, e, "nope", "run", nil)
 	wantCode(t, err, wasm.CodeNotFound)
 
-	// the plugin still works after all that
+	// the module still works after all that
 	if _, err := call(t, e, "basic", "run", map[string]string{"text": "ok"}); err != nil {
 		t.Fatal(err)
 	}
 }
 
 // TestStdio: the input reaches stdin byte for byte, the output is stdout as is, the function is the first argument
-// after the plugin's name, and stderr of a call that works is its log, not an error.
+// after the module's name, and stderr of a call that works is its log, not an error.
 func TestStdio(t *testing.T) {
 	e := withBasic(t, wasm.Config{})
 	raw := []byte("UNB+UNOA:2+sender+receiver'\x00\xff\n")
@@ -223,7 +223,7 @@ func TestStdio(t *testing.T) {
 	}
 }
 
-// TestTimeout: a plugin that never ends is stopped at Timeout (well before the test's own limit), as a retryable
+// TestTimeout: a module that never ends is stopped at Timeout (well before the test's own limit), as a retryable
 // timeout; a shorter deadline from the caller stops it too.
 func TestTimeout(t *testing.T) {
 	e := withBasic(t, wasm.Config{Timeout: 300 * time.Millisecond})
@@ -247,7 +247,7 @@ func TestTimeout(t *testing.T) {
 	}
 }
 
-// TestMemoryLimit: a plugin can't use more memory than MaxCallMemoryMB (32 MB by default): a call that tries fails as
+// TestMemoryLimit: a module can't use more memory than MaxCallMemoryMB (32 MB by default): a call that tries fails as
 // crashed.
 func TestMemoryLimit(t *testing.T) {
 	e := withBasic(t, wasm.Config{}) // the default cap, 32 MB
@@ -267,7 +267,7 @@ func TestPayloadLimit(t *testing.T) {
 	wantCode(t, err, wasm.CodeTooLarge)
 }
 
-// TestIsolation: every call gets a fresh instance, so a plugin can't keep one caller's input and hand it to the next.
+// TestIsolation: every call gets a fresh instance, so a module can't keep one caller's input and hand it to the next.
 // (The program starts over each time: a global set by one call isn't there for the next.)
 func TestIsolation(t *testing.T) {
 	e := withBasic(t, wasm.Config{})
@@ -283,7 +283,7 @@ func TestIsolation(t *testing.T) {
 }
 
 // TestConcurrentCalls: calls running at once each get a fresh instance, so none sees another's input or output
-// (each counts its own words). MaxModulesMB is raised so the Go plugin (4.3 MB) runs many at once.
+// (each counts its own words). MaxModulesMB is raised so the Go module (4.3 MB) runs many at once.
 func TestConcurrentCalls(t *testing.T) {
 	e := withBasic(t, wasm.Config{MaxModulesMB: 200})
 	var wg sync.WaitGroup
@@ -313,9 +313,9 @@ func TestConcurrentCalls(t *testing.T) {
 	}
 }
 
-// TestLoadAndStatus: every <name>.pb.wasm in the folder is a plugin, with what it says for --describe or, when it
-// doesn't answer, the defaults, and Plugins lists it; the JS hooks, other files, an upload in progress (a hidden
-// file) and a name pb_hooks can't call are left out. A missing plugin's error names the file it looked for.
+// TestLoadAndStatus: every <name>.pb.wasm in the folder is a module, with what it says for --describe or, when it
+// doesn't answer, the defaults, and Modules lists it; the JS hooks, other files, an upload in progress (a hidden
+// file) and a name pb_hooks can't call are left out. A missing module's error names the file it looked for.
 func TestLoadAndStatus(t *testing.T) {
 	code := module(t, basic)
 	plain := moduleTags(t, basic, "nodescribe")
@@ -323,14 +323,14 @@ func TestLoadAndStatus(t *testing.T) {
 		install(t, dir, "basic", code)
 		install(t, dir, "plain", plain) // doesn't answer --describe: just "run"
 		os.WriteFile(filepath.Join(dir, "main.pb.js"), []byte("// the app's JS hooks"), 0o644)
-		os.WriteFile(filepath.Join(dir, "notes.txt"), []byte("not a plugin"), 0o644)
+		os.WriteFile(filepath.Join(dir, "notes.txt"), []byte("not a module"), 0o644)
 		os.WriteFile(filepath.Join(dir, "lib.wasm"), code, 0o644)                  // a .wasm, not a .pb.wasm
 		os.WriteFile(filepath.Join(dir, ".basic.pb.wasm.part"), code[:100], 0o644) // an upload in progress
 		os.WriteFile(filepath.Join(dir, "two words.pb.wasm"), code, 0o644)         // not a name pb_hooks can call
 	})
-	got := e.h.Plugins()
+	got := e.h.Modules()
 	if len(got) != 2 || got[0].Name != "basic" || got[1].Name != "plain" {
-		t.Fatalf("plugins: %+v", got)
+		t.Fatalf("modules: %+v", got)
 	}
 	if !got[0].Running || got[0].Error != "" || got[0].Description == "" || got[0].Version != "1.0.0" || len(got[0].Functions) < 2 {
 		t.Fatalf("basic: %+v", got[0])
@@ -341,7 +341,7 @@ func TestLoadAndStatus(t *testing.T) {
 	if !runs(t, e, "plain") {
 		t.Fatal("plain didn't run")
 	}
-	if _, err := call(t, e, "plain", "counter", nil); err != nil { // not in the defaults, but the plugin has it
+	if _, err := call(t, e, "plain", "counter", nil); err != nil { // not in the defaults, but the module has it
 		t.Fatal(err)
 	}
 	out, err := e.h.Call(context.Background(), "basic", "--describe", nil) // what $wasm.call.async(name, "--describe") gives
@@ -355,7 +355,7 @@ func TestLoadAndStatus(t *testing.T) {
 	}
 }
 
-// TestNotLoadedBeforeServing: plugins run only while the app serves; before that (migrate, superuser and other
+// TestNotLoadedBeforeServing: modules run only while the app serves; before that (migrate, superuser and other
 // commands) a call is not_loaded.
 func TestNotLoadedBeforeServing(t *testing.T) {
 	code := module(t, basic)
@@ -374,7 +374,7 @@ func TestNotLoadedBeforeServing(t *testing.T) {
 	}
 }
 
-// TestDefaultDir: the plugin folder is pb_hooks beside pb_data: plugins are <name>.pb.wasm beside the JS hooks (where
+// TestDefaultDir: the module folder is pb_hooks beside pb_data: modules are <name>.pb.wasm beside the JS hooks (where
 // pocker's instance folders and `pocketone deploy` put them).
 func TestDefaultDir(t *testing.T) {
 	app, err := tests.NewTestApp(t.TempDir())
@@ -510,8 +510,8 @@ func TestMaxConcurrent(t *testing.T) {
 	wg.Wait()
 }
 
-// TestCold: as outside the tests, nothing compiled is kept, so every call compiles the plugin. Compiling isn't
-// counted in Timeout: a Go plugin takes longer than 300 ms to compile and still runs.
+// TestCold: as outside the tests, nothing compiled is kept, so every call compiles the module. Compiling isn't
+// counted in Timeout: a Go module takes longer than 300 ms to compile and still runs.
 func TestCold(t *testing.T) {
 	wasm.Cold(t)
 	e := withBasic(t, wasm.Config{Timeout: 300 * time.Millisecond})
@@ -523,7 +523,7 @@ func TestCold(t *testing.T) {
 		}
 		t.Logf("call %d: %v in %s", i, out, time.Since(start).Round(time.Millisecond))
 		if d := time.Since(start); d < 300*time.Millisecond {
-			t.Fatalf("call %d took %s: was the plugin compiled before?", i, d)
+			t.Fatalf("call %d took %s: was the module compiled before?", i, d)
 		}
 	}
 	_, err := call(t, e, "basic", "loop", nil)

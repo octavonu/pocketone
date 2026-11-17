@@ -1,5 +1,5 @@
 {
-  "description": "Reads an XML order into the same order JSON as the orders plugin",
+  "description": "Reads an XML order into the same order JSON as the orders module",
   "version": "1.0.0",
   "functions": [
     "run"

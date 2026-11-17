@@ -1,4 +1,4 @@
-//! memhog, an example plugin in Rust: it asks for more memory than a call may have (MaxCallMemoryMB, 32 MB by default),
+//! memhog, an example module in Rust: it asks for more memory than a call may have (MaxCallMemoryMB, 32 MB by default),
 //! to show what happens. "run" allocates the MB its input asks for ({"mb": 64}) the ordinary way: over the limit
 //! the allocation fails, Rust aborts, and the call fails as `crashed`, saying which limit it hit; the app goes on.
 //! "probe" asks 1 MB at a time with try_reserve, which returns an error instead of aborting, and reports how many MB
@@ -11,9 +11,9 @@ use std::io::Read;
 const MB: usize = 1 << 20;
 
 fn main() {
-    // `<name> --describe`: the manifest, kept as plugin.json beside the source
+    // `<name> --describe`: the manifest, kept as manifest.json beside the source
     if std::env::args().nth(1).as_deref() == Some("--describe") {
-        print!("{}", include_str!("../plugin.json"));
+        print!("{}", include_str!("../manifest.json"));
         return;
     }
     let mut raw = String::new();

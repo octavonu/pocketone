@@ -1,4 +1,4 @@
-// Command evil is a hostile plugin: "run" tries every way out of the box it can, and reports what it got; its input
+// Command evil is a hostile module: "run" tries every way out of the box it can, and reports what it got; its input
 // names a listening host:port to try to reach ({"target": "127.0.0.1:8090"}). Each entry is "refused: ..." or
 // "GOT: ...". "listen" listens on a port, to see whether the outside can reach it; "exit" tries to end the host.
 package main
@@ -16,7 +16,7 @@ import (
 
 // manifest is what --describe prints.
 //
-//go:embed plugin.json
+//go:embed manifest.json
 var manifest string
 
 func main() {

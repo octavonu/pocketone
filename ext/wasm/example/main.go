@@ -1,10 +1,10 @@
-// Command example runs one app with ext/wasm and the summary plugin wired in from pb_hooks: a new post gets its
+// Command example runs one app with ext/wasm and the summary module wired in from pb_hooks: a new post gets its
 // summary before it's saved (pb_hooks/main.pb.js). The example folder is the app's folder, laid out like an
-// instance on PocketHost: pb_data/ and pb_hooks/ side by side, the plugin beside the JS hooks.
+// instance on PocketHost: pb_data/ and pb_hooks/ side by side, the module beside the JS hooks.
 //
 //	cd example && go run . serve --dev
 //
-// Build the plugin into pb_hooks/ (before or after starting the app: each call reads it):
+// Build the module into pb_hooks/ (before or after starting the app: each call reads it):
 //
 //	(cd summary && GOOS=wasip1 GOARCH=wasm go build -o ../pb_hooks/summary.pb.wasm .)
 //

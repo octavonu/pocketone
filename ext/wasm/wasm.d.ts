@@ -1,24 +1,24 @@
 // ---- ext/wasm: $wasm ----
 // The pb_hooks API of ext/wasm. The JS engine adds it to pb_data/types.d.ts on every app ext/wasm runs on. ext/wasm is
-// an extension; the files it runs, pb_hooks/<name>.pb.wasm, are plugins.
+// an extension; the files it runs, pb_hooks/<name>.pb.wasm, are modules.
 
 /**
- * What a plugin gets on stdin: a string or bytes (a typed array or an ArrayBuffer) as they are, nothing for undefined or null, anything else as JSON.
+ * What a module gets on stdin: a string or bytes (a typed array or an ArrayBuffer) as they are, nothing for undefined or null, anything else as JSON.
  */
 type WasmInput = string | ArrayBuffer | Uint8Array | Array<number> | object | number | boolean | null | undefined
 
-/** One call to try a plugin with, from its manifest (what it prints for `<name> --describe`). */
+/** One call to try a module with, from its manifest (what it prints for `<name> --describe`). */
 interface WasmExample {
   /** "run" when the manifest leaves it out. */
   function: string
-  /** A string is the plugin's stdin as it is (EDIFACT, XML, CSV); anything else is sent as JSON. */
+  /** A string is the module's stdin as it is (EDIFACT, XML, CSV); anything else is sent as JSON. */
   input: any
   /** What it gives, when the example says. */
   output?: any
 }
 
-/** How one plugin in pb_hooks/ is doing, with what it says for --describe. */
-interface WasmPluginInfo {
+/** How one module in pb_hooks/ is doing, with what it says for --describe. */
+interface WasmModuleInfo {
   name: string
   /** Its module checks out: it can be called. */
   running: boolean
@@ -38,7 +38,7 @@ interface WasmPluginInfo {
   error?: string
 }
 
-/** What every plugin call in the app runs within. */
+/** What every module call in the app runs within. */
 interface WasmLimits {
   /** Memory each call may allocate (heap, stack, input). Every call has its own, not shared. */
   maxCallMemoryMB: number
@@ -47,7 +47,7 @@ interface WasmLimits {
   /** Calls running at once. */
   maxConcurrent: number
   /**
-   * MB of modules running at once: the sizes of the calls' modules, added up. With 10, two calls of a Go plugin
+   * MB of modules running at once: the sizes of the calls' modules, added up. With 10, two calls of a Go module
    * (~4.4 MB) run at once, and `maxConcurrent` of a Rust or Zig one (~0.1 MB). Also the largest module that loads.
    */
   maxModulesMB: number
@@ -55,23 +55,23 @@ interface WasmLimits {
   maxPayload: number
 }
 
-/** The codes ext/wasm gives; a plugin can give its own (it exits non-zero with {"code", "message"} on stderr). */
+/** The codes ext/wasm gives; a module can give its own (it exits non-zero with {"code", "message"} on stderr). */
 type WasmErrorCode =
   | "not_found" // no <name>.pb.wasm in pb_hooks/
   | "not_loaded" // in the folder, but it can't run (the message says why)
-  | "no_such_function" // the plugin has no such function (the code plugins give by convention)
+  | "no_such_function" // the module has no such function (the code modules give by convention)
   | "timeout" // over the time limit
-  | "crashed" // the plugin trapped, panicked or ran out of memory
+  | "crashed" // the module trapped, panicked or ran out of memory
   | "too_large" // input or output over the size limit
   | "busy" // the calls running left no room for this one for too long (maxConcurrent, maxModulesMB)
-  | "plugin_error" // the plugin exited non-zero with no code of its own
+  | "module_error" // the module exited non-zero with no code of its own
   | (string & {})
 
 /** What a failed $wasm.run.async or $wasm.call.async rejects with: catch it to decide what the hook does next. */
 interface WasmError extends Error {
   name: "WasmError"
-  /** The plugin's name. */
-  plugin: string
+  /** The module's name. */
+  module: string
   code: WasmErrorCode
   /** Whether the same call may work later (busy, timeout...). */
   retryable: boolean
@@ -79,9 +79,9 @@ interface WasmError extends Error {
 
 /** What $wasm.inspect.async gives: one call, with its log and its timings. */
 interface WasmInspection<T = any> {
-  /** The output; null when the call failed or the plugin wrote nothing. */
+  /** The output; null when the call failed or the module wrote nothing. */
   output: T | null
-  /** What the plugin wrote to stderr: its log. */
+  /** What the module wrote to stderr: its log. */
   stderr: string
   /** Why the call failed, or null. */
   error: { code: WasmErrorCode; message: string; retryable: boolean } | null
@@ -90,18 +90,18 @@ interface WasmInspection<T = any> {
 }
 
 /**
- * The app's plugins, the pb_hooks/<name>.pb.wasm files. A plugin is a closed box: it gets its input and gives its output,
+ * The app's modules, the pb_hooks/<name>.pb.wasm files. A module is a closed box: it gets its input and gives its output,
  * and reaches no database, file, network, environment or process.
  *
- * Calls are async only: a plugin runs off the app's JS VM while the hook awaits it, so the app serves other requests
+ * Calls are async only: a module runs off the app's JS VM while the hook awaits it, so the app serves other requests
  * meanwhile. `$wasm.run(...)` without `.async` throws.
  *
- * The output is the plugin's stdout: JSON parsed, a string when it isn't JSON, null when it's empty.
+ * The output is the module's stdout: JSON parsed, a string when it isn't JSON, null when it's empty.
  */
 declare namespace $wasm {
   namespace run {
     /**
-     * Calls the plugin's "run". Rejects with a {@link WasmError} when the call fails.
+     * Calls the module's "run". Rejects with a {@link WasmError} when the call fails.
      *
      * @example
      * onRecordCreate(async (e) => {
@@ -115,7 +115,7 @@ declare namespace $wasm {
 
   namespace call {
     /**
-     * Calls one of the plugin's functions (its first argument). Rejects with a {@link WasmError} when the call fails.
+     * Calls one of the module's functions (its first argument). Rejects with a {@link WasmError} when the call fails.
      *
      * @example
      * const r = await $wasm.call.async("crypto", "decrypt", { key, data })
@@ -124,12 +124,12 @@ declare namespace $wasm {
   }
 
   namespace inspect {
-    /** Calls a function to try a plugin out: never rejects for the call, and gives its log and timings. */
+    /** Calls a function to try a module out: never rejects for the call, and gives its log and timings. */
     function async<T = any>(name: string, fn: string, input?: WasmInput): Promise<WasmInspection<T>>
   }
 
-  /** Every plugin in pb_hooks/ and how it's doing. */
-  function plugins(): Array<WasmPluginInfo>
+  /** Every module in pb_hooks/ and how it's doing. */
+  function modules(): Array<WasmModuleInfo>
 
   /** What every call runs within: memory, time, how many calls and how many MB of modules at once. */
   function limits(): WasmLimits

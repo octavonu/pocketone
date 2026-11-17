@@ -1,6 +1,6 @@
 package wasm_test
 
-// The modules the tests run: Go plugin folders built for wasip1 (once per test run), the Rust and Zig examples kept
+// The modules the tests run: Go source folders built for wasip1 (once per test run), the Rust and Zig examples kept
 // built beside their sources (prebuilt), and a few modules written byte by byte (tiny, says, producers).
 
 import (
@@ -18,17 +18,17 @@ var (
 	built   = map[string][]byte{}
 )
 
-// module compiles a plugin folder (once per test run) and returns its .wasm.
+// module compiles a Go source folder (once per test run) and returns its .wasm.
 func module(t *testing.T, src string) []byte { return build(t, src, "", false) }
 
-// moduleTags builds a Go plugin folder with build tags.
+// moduleTags builds a Go source folder with build tags.
 func moduleTags(t *testing.T, src, tags string) []byte { return build(t, src, tags, false) }
 
-// build builds a Go plugin folder for wasip1: a program (what a plugin is), or a library (-buildmode=c-shared).
+// build builds a Go source folder for wasip1: a program (what a module is), or a library (-buildmode=c-shared).
 func build(t *testing.T, src, tags string, library bool) []byte {
 	t.Helper()
 	if testing.Short() {
-		t.Skip("builds wasm plugins")
+		t.Skip("builds wasm modules")
 	}
 	buildMu.Lock()
 	defer buildMu.Unlock()
@@ -36,7 +36,7 @@ func build(t *testing.T, src, tags string, library bool) []byte {
 	if b, ok := built[key]; ok {
 		return b
 	}
-	out := filepath.Join(t.TempDir(), "plugin.wasm")
+	out := filepath.Join(t.TempDir(), "module.wasm")
 	args := []string{"build", "-tags=" + tags, "-o", out}
 	if library {
 		args = append(args, "-buildmode=c-shared")
@@ -64,7 +64,7 @@ const (
 	zigVersion  = "0.14.0"
 )
 
-// prebuilt lists them: the folder, the language, what the build makes, and the file kept (the plugin's name).
+// prebuilt lists them: the folder, the language, what the build makes, and the file kept (the module's name).
 var prebuilt = []struct{ dir, lang, out, file string }{
 	{"example/summary-rust", "rust", "summary", "summary.pb.wasm"},
 	{"example/summary-zig", "zig", "summary", "summary.pb.wasm"},
@@ -123,7 +123,7 @@ func toolchain(t *testing.T, name, want string, version ...string) string {
 func buildExample(t *testing.T, dir string) []byte {
 	t.Helper()
 	if testing.Short() {
-		t.Skip("builds wasm plugins")
+		t.Skip("builds wasm modules")
 	}
 	var p struct{ dir, lang, out, file string }
 	for _, q := range prebuilt {
@@ -198,7 +198,7 @@ func tiny(spin bool, pad int) []byte {
 	return b
 }
 
-// says is a module that prints out on stdout and exits 0, whatever it's asked: a plugin whose --describe prints out.
+// says is a module that prints out on stdout and exits 0, whatever it's asked: a module whose --describe prints out.
 func says(out string) []byte {
 	sec := func(id byte, content []byte) []byte {
 		return append(append([]byte{id}, uleb(len(content))...), content...)

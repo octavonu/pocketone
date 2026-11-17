@@ -2,5 +2,5 @@
 
 package main
 
-// describe is empty: built with -tags nodescribe, the plugin doesn't answer --describe.
+// describe is empty: built with -tags nodescribe, the module doesn't answer --describe.
 var describe string

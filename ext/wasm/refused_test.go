@@ -1,6 +1,6 @@
 package wasm_test
 
-// Plugins that must be refused, or run with the defaults, and say why: a bad --describe, a module that isn't valid
+// Modules that must be refused, or run with the defaults, and say why: a bad --describe, a module that isn't valid
 // WebAssembly, one over MaxModulesMB, and modules that aren't WASI programs (host functions this host doesn't have,
 // a library). The lab has the same set: broken, fat_evil, phone, library.
 
@@ -13,16 +13,16 @@ import (
 	"github.com/pockethost/pocketone/ext/wasm"
 )
 
-// TestBadManifests: when what a plugin prints for --describe isn't a manifest, or asks for more than a pure function
-// gets, Plugins says why, and the plugin runs with the defaults (calls don't read the manifest).
+// TestBadManifests: when what a module prints for --describe isn't a manifest, or asks for more than a pure function
+// gets, Modules says why, and the module runs with the defaults (calls don't read the manifest).
 func TestBadManifests(t *testing.T) {
 	for _, tc := range []struct {
 		name  string
 		value string
 		want  string
 	}{
-		{"not JSON", `{functions: run}`, "not a plugin manifest"},
-		{"not an object", `[1]`, "not a plugin manifest"},
+		{"not JSON", `{functions: run}`, "not a module manifest"},
+		{"not an object", `[1]`, "not a module manifest"},
 		{"more after the object", `{"description":"a"} {"description":"b"}`, "more after the JSON object"},
 		{"a stray brace after it", "{\"description\":\"a\"}}\n", "more after the JSON object"},
 		{"bad function name", `{"functions":["run now"]}`, "valid function name"},
@@ -53,7 +53,7 @@ func TestBadManifests(t *testing.T) {
 	}
 }
 
-// TestBrokenModule: a module that isn't valid WebAssembly doesn't load and says why, and the other plugins load as
+// TestBrokenModule: a module that isn't valid WebAssembly doesn't load and says why, and the other modules load as
 // usual.
 func TestBrokenModule(t *testing.T) {
 	code := module(t, basic)
@@ -73,11 +73,11 @@ func TestBrokenModule(t *testing.T) {
 		t.Errorf("message doesn't say why: %s", err.Message)
 	}
 	if !runs(t, e, "basic") {
-		t.Error("the good plugin stopped")
+		t.Error("the good module stopped")
 	}
 }
 
-// TestModuleTooLarge: a .wasm over MaxModulesMB isn't read (it could never run), and Plugins and the call say why.
+// TestModuleTooLarge: a .wasm over MaxModulesMB isn't read (it could never run), and Modules and the call say why.
 func TestModuleTooLarge(t *testing.T) {
 	e := newApp(t, wasm.Config{MaxModulesMB: 1}, func(_ core.App, dir string) {
 		install(t, dir, "big", make([]byte, 2<<20))
@@ -92,7 +92,7 @@ func TestModuleTooLarge(t *testing.T) {
 	}
 }
 
-// TestUnknownImports: a module that isn't a plugin is refused when it loads, saying why: one built for host
+// TestUnknownImports: a module that can't run here is refused when it loads, saying why: one built for host
 // functions this host doesn't have (v1's pb_fetch, an Extism PDK's), or a library with no main to run.
 func TestUnknownImports(t *testing.T) {
 	for _, tc := range []struct {

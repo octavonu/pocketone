@@ -10,7 +10,7 @@ import (
 	"github.com/pockethost/pocketone/ext/extkit/js"
 )
 
-// BindJS exposes the app's plugins to its JS hooks as the $wasm global, on one of its JS runtimes. [Extension] binds
+// BindJS exposes the app's modules to its JS hooks as the $wasm global, on one of its JS runtimes. [Extension] binds
 // it for you; on an app without extkit, add it to the jsvm OnInit:
 //
 //	jsvm.MustRegister(app, jsvm.Config{OnInit: func(rt js.Runtime) { wasm.BindJS(app, rt) }})
@@ -23,25 +23,25 @@ import (
 //	  return e.next()
 //	}, "posts")
 //
-//	await $wasm.run.async(name, input)            -> output: calls the plugin's "run"
+//	await $wasm.run.async(name, input)            -> output: calls the module's "run"
 //	await $wasm.call.async(name, function, input) -> output: calls one of its functions (the first argument the
-//	                                                 plugin gets)
+//	                                                 module gets)
 //	await $wasm.inspect.async(name, function, input) -> {output, stderr, error, compileMs, runMs}: call, for trying
-//	                                                 a plugin out; it never throws for the call, error is {code,
-//	                                                 message, retryable} or null, and stderr is what the plugin
+//	                                                 a module out; it never throws for the call, error is {code,
+//	                                                 message, retryable} or null, and stderr is what the module
 //	                                                 wrote there (its log)
-//	$wasm.plugins()                               -> every plugin in the folder, with what it says for --describe:
+//	$wasm.modules()                               -> every module in the folder, with what it says for --describe:
 //	                                                 {name, running, description, functions, language, repository,
 //	                                                 examples, size, error}
 //	$wasm.limits()                                -> what every call runs within: {maxCallMemoryMB, timeoutMs,
 //	                                                 maxConcurrent, maxModulesMB, maxPayload}
 //
-// The input is the plugin's stdin: a string or bytes (an ArrayBuffer, a typed array, a []byte from Go) as they are,
-// nothing for undefined or null, anything else as JSON. The output is the plugin's stdout: JSON parsed, or a string
+// The input is the module's stdin: a string or bytes (an ArrayBuffer, a typed array, a []byte from Go) as they are,
+// nothing for undefined or null, anything else as JSON. The output is the module's stdout: JSON parsed, or a string
 // if it isn't JSON, null if empty. A failed call rejects with an Error named WasmError, with code, message, retryable
-// and plugin (see the Code* constants and Error): catch it to decide what the hook does next.
+// and module (see the Code* constants and Error): catch it to decide what the hook does next.
 //
-// Calls are async only. The JS engine runs one VM per app, and it can't interrupt a call into Go: a plugin called
+// Calls are async only. The JS engine runs one VM per app, and it can't interrupt a call into Go: a module called
 // synchronously would hold the VM, and with it the app's every other hook and request, for as long as it runs. So a
 // call runs off the VM and the hook awaits it; $wasm.run(...) without .async throws, saying so.
 func BindJS(app core.App, rt js.Runtime) {
@@ -68,7 +68,7 @@ func BindJS(app core.App, rt js.Runtime) {
 			var e *Error
 			switch {
 			case errors.As(err, &e):
-				res["error"] = map[string]any{"code": e.Code, "message": e.Message, "retryable": e.Retryable, "plugin": e.Plugin}
+				res["error"] = map[string]any{"code": e.Code, "message": e.Message, "retryable": e.Retryable, "module": e.Module}
 			case err != nil:
 				return "", err
 			}
@@ -83,12 +83,12 @@ func BindJS(app core.App, rt js.Runtime) {
 	native := rt.NewObject()
 	_ = native.Set("call", call(false))
 	_ = native.Set("inspect", call(true))
-	_ = native.Set("plugins", func() (string, error) {
+	_ = native.Set("modules", func() (string, error) {
 		h, err := get()
 		if err != nil {
 			return "", err
 		}
-		return jsonText(h.Plugins())
+		return jsonText(h.Modules())
 	})
 	_ = native.Set("limits", func() (string, error) {
 		h, err := get()
@@ -118,7 +118,7 @@ const jsPrelude = `(() => {
     err.name = "WasmError";
     err.code = e.code;
     err.retryable = e.retryable;
-    err.plugin = e.plugin;
+    err.module = e.module;
     return err;
   };
   const args = (name, fn, v) => {
@@ -152,12 +152,12 @@ const jsPrelude = `(() => {
     run: asyncOnly("run", "name, input", async (name, v) => result(await native.call.async(...args(name, "run", v)))),
     call: asyncOnly("call", "name, function, input", async (name, fn, v) => result(await native.call.async(...args(name, fn, v)))),
     inspect: asyncOnly("inspect", "name, function, input", async (name, fn, v) => report(await native.inspect.async(...args(name, fn, v)))),
-    plugins: () => JSON.parse(native.plugins()),
+    modules: () => JSON.parse(native.modules()),
     limits: () => JSON.parse(native.limits()),
   });
 })()`
 
-// stdin is the plugin's stdin from what JS passed: bytes (a typed array, sent as its numbers) and strings as they
+// stdin is the module's stdin from what JS passed: bytes (a typed array, sent as its numbers) and strings as they
 // are, nothing for null, anything else (a JS object, a Go value) as JSON.
 func stdin(name string, in any, bytes bool) ([]byte, error) {
 	switch v := in.(type) {

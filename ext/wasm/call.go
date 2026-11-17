@@ -13,45 +13,45 @@ import (
 	"github.com/tetratelabs/wazero/sys"
 )
 
-// Error codes. A plugin's own errors carry the code it chose (see Error).
+// Error codes. A module's own errors carry the code it chose (see Error).
 const (
-	CodeNotFound       = "not_found"        // no plugin by that name in the plugin folder
+	CodeNotFound       = "not_found"        // no module by that name in the module folder
 	CodeNotLoaded      = "not_loaded"       // in the folder, but it can't run: the app isn't serving, or its file is wrong (the message says why)
-	CodeNoSuchFunction = "no_such_function" // the plugin has no such function: the code a plugin gives for one it doesn't know (by convention)
+	CodeNoSuchFunction = "no_such_function" // the module has no such function: the code a module gives for one it doesn't know (by convention)
 	CodeTimeout        = "timeout"          // over the time limit
-	CodeCrashed        = "crashed"          // the plugin trapped, panicked or ran out of memory
+	CodeCrashed        = "crashed"          // the module trapped, panicked or ran out of memory
 	CodeTooLarge       = "too_large"        // input or output over MaxPayload
 	CodeBusy           = "busy"             // the calls running left no room (MaxConcurrent, MaxModulesMB) for longer than the wait allowed
-	CodePluginError    = "plugin_error"     // the plugin exited non-zero with no code of its own
+	CodeModuleError    = "module_error"     // the module exited non-zero with no code of its own
 )
 
-// Error is a failed plugin call; in pb_hooks, the WasmError a $wasm call throws. A plugin fails by exiting
+// Error is a failed module call; in pb_hooks, the WasmError a $wasm call throws. A module fails by exiting
 // non-zero: if what it wrote to stderr is a JSON object {"code", "message", "retryable"}, it's passed on as is;
-// any other text becomes Message, with CodePluginError.
+// any other text becomes Message, with CodeModuleError.
 type Error struct {
-	Plugin    string `json:"plugin"`
+	Module    string `json:"module"`
 	Code      string `json:"code"`
 	Message   string `json:"message"`
 	Retryable bool   `json:"retryable"`
 }
 
 func (e *Error) Error() string {
-	return fmt.Sprintf("wasm plugin %s: %s: %s", e.Plugin, e.Code, e.Message)
+	return fmt.Sprintf("wasm module %s: %s: %s", e.Module, e.Code, e.Message)
 }
 
-// plugin is a plugin as its file was when a call (or Plugins) found it: its module's size. A call reads the module
+// module is a <name>.pb.wasm as its file was when a call (or Modules) found it: its size. A call reads the code
 // itself once it has room, and finishes with what it read, whatever the file does meanwhile.
-type plugin struct {
+type module struct {
 	host *Host
 	name string
 	size int // the module's size in bytes, when it was opened
 }
 
-// run runs the plugin's function with input (its stdin) and returns its output (its stdout). Every call compiles the
-// plugin from its file, as it is then, and runs it in a runtime of its own, so nothing from one call reaches another,
+// run runs the module's function with input (its stdin) and returns its output (its stdout). Every call compiles the
+// module from its file, as it is then, and runs it in a runtime of its own, so nothing from one call reaches another,
 // and nothing stays in memory after. Up to MaxConcurrent calls run at once; more wait. Errors are *Error.
 //
-// It's unexported on purpose: plugins are called from the app's pb_hooks ($wasm, see BindJS) and from nowhere else,
+// It's unexported on purpose: modules are called from the app's pb_hooks ($wasm, see BindJS) and from nowhere else,
 // no Go API, no endpoint.
 func (h *Host) run(ctx context.Context, name, function string, input []byte) ([]byte, error) {
 	r, err := h.runReport(ctx, name, function, input)
@@ -68,24 +68,24 @@ type report struct {
 
 // runReport is run, with the call's report.
 func (h *Host) runReport(ctx context.Context, name, function string, input []byte) (report, error) {
-	p, err := h.find(name)
+	m, err := h.find(name)
 	if err != nil {
 		return report{}, err
 	}
 	if len(input) > h.cfg.MaxPayload {
-		return report{}, &Error{Plugin: name, Code: CodeTooLarge, Message: fmt.Sprintf("input over %d bytes", h.cfg.MaxPayload)}
+		return report{}, &Error{Module: name, Code: CodeTooLarge, Message: fmt.Sprintf("input over %d bytes", h.cfg.MaxPayload)}
 	}
 
 	// at most MaxConcurrent calls at once, their modules at most MaxModulesMB together (compiling included), so memory
 	// stays bounded: wait for room, up to Timeout
 	waitCtx, cancel := context.WithTimeoutCause(ctx, h.cfg.Timeout, errWaited)
-	release, err := h.take(waitCtx, p.size)
+	release, err := h.take(waitCtx, m.size)
 	cancel() // the wait only: the call itself runs on ctx
 	if err != nil {
-		return report{}, h.busy(p, err)
+		return report{}, h.busy(m, err)
 	}
 	defer release()
-	return p.call(ctx, function, input)
+	return m.call(ctx, function, input)
 }
 
 // errWaited is take giving up because the wait ran out.
@@ -122,7 +122,7 @@ func (h *Host) take(ctx context.Context, size int) (release func(), err error) {
 }
 
 // busy is the error of a call that found no room, with the numbers: the module's size against what was running.
-func (h *Host) busy(p *plugin, err error) *Error {
+func (h *Host) busy(m *module, err error) *Error {
 	h.slotMu.Lock()
 	running, bytes := h.running, h.bytes
 	h.slotMu.Unlock()
@@ -130,9 +130,9 @@ func (h *Host) busy(p *plugin, err error) *Error {
 	if !errors.Is(err, errWaited) {
 		why = "the caller gave up waiting for room"
 	}
-	return &Error{Plugin: p.name, Code: CodeBusy, Retryable: true, Message: fmt.Sprintf(
-		"%s: %d of %d calls were running, with %s of %d MB of modules (MaxModulesMB); this plugin's module is %s",
-		why, running, h.cfg.MaxConcurrent, size(bytes), h.cfg.MaxModulesMB, size(p.size))}
+	return &Error{Module: m.name, Code: CodeBusy, Retryable: true, Message: fmt.Sprintf(
+		"%s: %d of %d calls were running, with %s of %d MB of modules (MaxModulesMB); this module is %s",
+		why, running, h.cfg.MaxConcurrent, size(bytes), h.cfg.MaxModulesMB, size(m.size))}
 }
 
 // size is n bytes for people: "95 KB", "4.3 MB".
@@ -143,42 +143,42 @@ func size(n int) string {
 	return fmt.Sprintf("%.1f MB", float64(n)/(1<<20))
 }
 
-// find is the plugin called name as its file is now, or an *Error that says why it can't be called.
-func (h *Host) find(name string) (*plugin, error) {
+// find is the module called name as its file is now, or an *Error that says why it can't be called.
+func (h *Host) find(name string) (*module, error) {
 	h.mu.RLock()
 	serving := h.serving
 	h.mu.RUnlock()
 	if !serving {
-		return nil, &Error{Plugin: name, Code: CodeNotLoaded, Message: "plugins run only while the app serves"}
+		return nil, &Error{Module: name, Code: CodeNotLoaded, Message: "modules run only while the app serves"}
 	}
-	p, err := h.open(name)
+	m, err := h.open(name)
 	if err != nil {
 		return nil, h.cantRun(name, err)
 	}
-	return p, nil
+	return m, nil
 }
 
-// cantRun is the *Error of a plugin whose file can't run: not there, or what's wrong with them.
+// cantRun is the *Error of a module whose file can't run: not there, or what's wrong with them.
 func (h *Host) cantRun(name string, err error) *Error {
 	if errors.Is(err, fs.ErrNotExist) {
-		return &Error{Plugin: name, Code: CodeNotFound, Message: fmt.Sprintf("no such plugin (%s%s in the plugin folder)", name, fileSuffix)}
+		return &Error{Module: name, Code: CodeNotFound, Message: fmt.Sprintf("no such module (%s%s in the module folder)", name, fileSuffix)}
 	}
-	return &Error{Plugin: name, Code: CodeNotLoaded, Message: "the plugin didn't load: " + err.Error()}
+	return &Error{Module: name, Code: CodeNotLoaded, Message: "the module didn't load: " + err.Error()}
 }
 
-// call reads the plugin's module, compiles it and runs function once. Compiling validates the module (a broken or
+// call reads the module's file, compiles it and runs function once. Compiling validates the module (a broken or
 // half-written one doesn't run); Timeout limits the run, and compiling comes before it, bounded by the module's size
 // (at most MaxModulesMB), and can't be interrupted.
-func (p *plugin) call(ctx context.Context, function string, input []byte) (report, error) {
-	h := p.host
+func (m *module) call(ctx context.Context, function string, input []byte) (report, error) {
+	h := m.host
 	start := time.Now()
-	code, err := p.read()
+	code, err := m.read()
 	if err != nil {
-		return report{}, h.cantRun(p.name, err)
+		return report{}, h.cantRun(m.name, err)
 	}
 	rt, err := newRuntime(ctx, h.cfg.MaxCallMemoryMB)
 	if err != nil {
-		return report{}, &Error{Plugin: p.name, Code: CodeCrashed, Message: "runtime: " + err.Error()}
+		return report{}, &Error{Module: m.name, Code: CodeCrashed, Message: "runtime: " + err.Error()}
 	}
 	defer rt.Close(context.Background()) // drops the compiled module with it
 	mod, err := rt.CompileModule(ctx, code)
@@ -186,31 +186,31 @@ func (p *plugin) call(ctx context.Context, function string, input []byte) (repor
 		err = checkModule(mod)
 	}
 	if err != nil {
-		h.app.Logger().Warn("wasm: plugin can't run", "plugin", p.name, "error", err)
-		return report{compile: time.Since(start)}, h.cantRun(p.name, fmt.Errorf("module: %w", err))
+		h.app.Logger().Warn("wasm: module can't run", "module", m.name, "error", err)
+		return report{compile: time.Since(start)}, h.cantRun(m.name, fmt.Errorf("module: %w", err))
 	}
 	compiled := time.Since(start)
 
 	ctx, cancel := context.WithTimeout(ctx, h.cfg.Timeout)
 	defer cancel()
-	r := runModule(ctx, rt, mod, p.name, function, input, h.cfg.MaxPayload)
+	r := runModule(ctx, rt, mod, m.name, function, input, h.cfg.MaxPayload)
 	rep := report{stderr: r.stderr, compile: compiled, running: time.Since(start) - compiled}
-	attrs := []any{"plugin", p.name, "function", function, "compile", compiled.String(), "run", rep.running.String()}
+	attrs := []any{"module", m.name, "function", function, "compile", compiled.String(), "run", rep.running.String()}
 	logged := strings.TrimSpace(r.stderr) != "" // what it wrote to stderr is its log
 	if logged {
 		attrs = append(attrs, "stderr", truncate(strings.TrimSpace(r.stderr), maxLoggedStderr))
 	}
-	if e := p.explain(ctx, r); e != nil {
+	if e := m.explain(ctx, r); e != nil {
 		if e.Code == CodeCrashed && outOfMemory(e.Message+"\n"+r.stderr) {
 			e.Message += fmt.Sprintf(" (each call may allocate up to %d MB: MaxCallMemoryMB)", h.cfg.MaxCallMemoryMB)
 		}
-		h.app.Logger().Warn("wasm: plugin call failed", append(attrs, "code", e.Code, "error", e.Message)...)
+		h.app.Logger().Warn("wasm: module call failed", append(attrs, "code", e.Code, "error", e.Message)...)
 		return rep, e
 	}
 	if logged {
-		h.app.Logger().Info("wasm: plugin call", attrs...)
+		h.app.Logger().Info("wasm: module call", attrs...)
 	} else {
-		h.app.Logger().Debug("wasm: plugin call", attrs...)
+		h.app.Logger().Debug("wasm: module call", attrs...)
 	}
 	rep.stdout = r.stdout
 	return rep, nil
@@ -222,17 +222,17 @@ const (
 )
 
 // explain turns a failed run into an *Error; nil if it worked.
-func (p *plugin) explain(ctx context.Context, r result) *Error {
-	e := &Error{Plugin: p.name}
+func (m *module) explain(ctx context.Context, r result) *Error {
+	e := &Error{Module: m.name}
 	stderr := strings.TrimSpace(r.stderr)
 	var exit *sys.ExitError
 	switch {
 	case errors.Is(ctx.Err(), context.DeadlineExceeded):
-		e.Code, e.Message, e.Retryable = CodeTimeout, fmt.Sprintf("over the time limit (%s)", p.host.cfg.Timeout), true
+		e.Code, e.Message, e.Retryable = CodeTimeout, fmt.Sprintf("over the time limit (%s)", m.host.cfg.Timeout), true
 	case ctx.Err() != nil:
 		e.Code, e.Message, e.Retryable = CodeTimeout, "the call was cancelled", true
 	case r.tooLarge:
-		e.Code, e.Message = CodeTooLarge, fmt.Sprintf("output over %d bytes", p.host.cfg.MaxPayload)
+		e.Code, e.Message = CodeTooLarge, fmt.Sprintf("output over %d bytes", m.host.cfg.MaxPayload)
 	case r.err == nil:
 		return nil
 	case errors.As(r.err, &exit):
@@ -244,19 +244,19 @@ func (p *plugin) explain(ctx context.Context, r result) *Error {
 		switch {
 		case json.Unmarshal([]byte(stderr), &structured) == nil && structured.Code != "":
 			e.Code, e.Message, e.Retryable = structured.Code, structured.Message, structured.Retryable
-		case goCrash(stderr) != "": // a Go plugin's panic or fatal error: exit code 2, the reason on stderr
+		case goCrash(stderr) != "": // a Go module's panic or fatal error: exit code 2, the reason on stderr
 			e.Code, e.Message = CodeCrashed, goCrash(stderr)
 		case stderr != "":
-			e.Code, e.Message = CodePluginError, truncate(stderr, maxMessage)
+			e.Code, e.Message = CodeModuleError, truncate(stderr, maxMessage)
 		default:
-			e.Code, e.Message = CodePluginError, fmt.Sprintf("exited with code %d", r.exitCode)
+			e.Code, e.Message = CodeModuleError, fmt.Sprintf("exited with code %d", r.exitCode)
 		}
 	default:
 		// a trap: the first line; the wasm stack trace after it goes to the log, not to the caller
 		msg, trace, _ := strings.Cut(r.err.Error(), "\nwasm stack trace:")
 		e.Code, e.Message = CodeCrashed, strings.TrimSuffix(msg, " (recovered by wazero)")
 		if trace != "" {
-			p.host.app.Logger().Debug("wasm: plugin stack trace", "plugin", p.name, "trace", trace)
+			m.host.app.Logger().Debug("wasm: module stack trace", "module", m.name, "trace", trace)
 		}
 		if stderr != "" { // a Rust or Zig panic says why on stderr, then traps
 			line, _, _ := strings.Cut(stderr, "\n")

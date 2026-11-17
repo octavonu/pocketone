@@ -1,4 +1,4 @@
-// Command summary is an example ext/wasm plugin: a pure function from a post to its summary, written as a plain
+// Command summary is an example ext/wasm module: a pure function from a post to its summary, written as a plain
 // command-line program.
 //
 //	stdin:  {"title": "...", "body": "..."}
@@ -21,9 +21,9 @@ import (
 	"strings"
 )
 
-// manifest is what `<name> --describe` prints: plugin.json beside the source.
+// manifest is what `<name> --describe` prints: manifest.json beside the source.
 //
-//go:embed plugin.json
+//go:embed manifest.json
 var manifest string
 
 func main() {

@@ -21,7 +21,7 @@ import (
 	"github.com/pockethost/pocketone/ext/wasm"
 )
 
-// checkExamples runs every example in the plugin's manifest and checks it gives the output it says. An example that
+// checkExamples runs every example in the module's manifest and checks it gives the output it says. An example that
 // says no output may fail: it shows a failure (memhog's 64 MB).
 func checkExamples(t *testing.T, e env, name string) {
 	t.Helper()
@@ -51,7 +51,7 @@ func checkExamples(t *testing.T, e env, name string) {
 	}
 }
 
-// TestSummaryExample: the summary plugin, in Go, Rust and Zig, gives the same answers.
+// TestSummaryExample: the summary module, in Go, Rust and Zig, gives the same answers.
 func TestSummaryExample(t *testing.T) {
 	for _, lang := range []string{"go", "rust", "zig"} {
 		t.Run(lang, func(t *testing.T) { testSummary(t, lang) })
@@ -90,7 +90,7 @@ func testSummary(t *testing.T, lang string) {
 	}
 	_, err = call(t, e, "summary", "run", map[string]string{"title": "Empty"})
 	wantCode(t, err, "empty_body")
-	_, err = call(t, e, "summary", "other", nil) // the plugin answers a function it doesn't have
+	_, err = call(t, e, "summary", "other", nil) // the module answers a function it doesn't have
 	wantCode(t, err, wasm.CodeNoSuchFunction)
 	if i, _ := info(t, e, "summary"); i.Error != "" || i.Description == "" || len(i.Functions) != 1 {
 		t.Errorf("--describe: %+v", i)
@@ -117,8 +117,8 @@ func testSummary(t *testing.T, lang string) {
 var update = flag.Bool("update", false, "rebuild the prebuilt Rust and Zig examples (example/*/*.pb.wasm) from their sources")
 
 // TestPrebuiltExamples: every Rust and Zig example, as kept built beside its source, loads, describes itself as its
-// plugin.json says (so the build isn't older than its manifest), and gives what each of its examples says. They run
-// with no Rust or Zig installed, so a change to ext/wasm that breaks a real plugin shows here. With -update, each is
+// manifest.json says (so the build isn't older than its manifest), and gives what each of its examples says. They run
+// with no Rust or Zig installed, so a change to ext/wasm that breaks a real module shows here. With -update, each is
 // rebuilt from its source first (with rustVersion and zigVersion).
 func TestPrebuiltExamples(t *testing.T) {
 	for _, p := range prebuilt {
@@ -139,13 +139,13 @@ func TestPrebuiltExamples(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			want, err := os.ReadFile(filepath.Join(p.dir, "plugin.json"))
+			want, err := os.ReadFile(filepath.Join(p.dir, "manifest.json"))
 			if err != nil {
 				t.Fatal(err)
 			}
 			var g, w any
 			if json.Unmarshal(got, &g) != nil || json.Unmarshal(want, &w) != nil || !reflect.DeepEqual(g, w) {
-				t.Fatalf("--describe isn't %s/plugin.json: rebuild it (go test -run TestPrebuiltExamples -update)\n%s", p.dir, got)
+				t.Fatalf("--describe isn't %s/manifest.json: rebuild it (go test -run TestPrebuiltExamples -update)\n%s", p.dir, got)
 			}
 			checkExamples(t, e, name)
 		})
@@ -164,14 +164,14 @@ func TestPrebuiltMatchSources(t *testing.T) {
 	}
 }
 
-// TestHostilePlugin: a plugin that tries every way out of the box gets nothing, and can't take the host down.
-func TestHostilePlugin(t *testing.T) {
+// TestHostileModule: a module that tries every way out of the box gets nothing, and can't take the host down.
+func TestHostileModule(t *testing.T) {
 	src := "testdata/evil"
 	code := module(t, src)
 	reached := false
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { reached = true }))
 	defer srv.Close()
-	os.Setenv("EVIL_TEST_SECRET", "s3cret") // in the host's environment: the plugin must not see it
+	os.Setenv("EVIL_TEST_SECRET", "s3cret") // in the host's environment: the module must not see it
 	defer os.Unsetenv("EVIL_TEST_SECRET")
 
 	// it imports net/http (to try the network), so its module is ~11 MB: over the default MaxModulesMB
@@ -208,7 +208,7 @@ func TestHostilePlugin(t *testing.T) {
 		}
 	}
 	if reached {
-		t.Error("the plugin reached the test server")
+		t.Error("the module reached the test server")
 	}
 
 	// Go's net.Listen works on wasip1, inside the program only (its in-memory network): nothing outside reaches it
@@ -224,10 +224,10 @@ func TestHostilePlugin(t *testing.T) {
 		out, err := e.h.Call(context.Background(), "evil", "listen", in)
 		done <- fmt.Sprint(string(out), err)
 	}()
-	time.Sleep(300 * time.Millisecond) // the plugin is listening now
+	time.Sleep(300 * time.Millisecond) // the module is listening now
 	if c, err := net.DialTimeout("tcp", addr, 300*time.Millisecond); err == nil {
 		c.Close()
-		t.Errorf("reached the plugin's listener at %s from outside", addr)
+		t.Errorf("reached the module's listener at %s from outside", addr)
 	}
 	got := <-done
 	t.Logf("listen: %s", got)

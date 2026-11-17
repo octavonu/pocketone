@@ -11,7 +11,7 @@ import (
 	"github.com/pockethost/pocketone/ext/wasm"
 )
 
-// TestLimits: Plugins and $wasm.plugins() give each module's size, $wasm.limits() what every call runs within.
+// TestLimits: Modules and $wasm.modules() give each module's size, $wasm.limits() what every call runs within.
 func TestLimits(t *testing.T) {
 	small, big := tiny(false, 0), tiny(false, 1<<20)
 	e := newApp(t, wasm.Config{}, func(_ core.App, dir string) {
@@ -25,7 +25,7 @@ func TestLimits(t *testing.T) {
 	}
 
 	got, err := jsEval(t, e.app, `(() => {
-		const l = $wasm.limits(), b = $wasm.plugins().find((p) => p.name === "big")
+		const l = $wasm.limits(), b = $wasm.modules().find((p) => p.name === "big")
 		return JSON.stringify([l.maxConcurrent, l.maxModulesMB, l.timeoutMs, l.maxCallMemoryMB, l.maxPayload, b.size > 1 << 20])
 	})()`)
 	if err != nil {

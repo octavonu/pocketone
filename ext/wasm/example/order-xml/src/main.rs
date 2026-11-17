@@ -1,4 +1,4 @@
-//! order-xml, an example plugin in Rust: an XML order (on stdin) read into the same order JSON as edifact-orders-rust
+//! order-xml, an example module in Rust: an XML order (on stdin) read into the same order JSON as edifact-orders-rust
 //! (EDIFACT), so a hook can take orders in either format and store them the same way.
 //!
 //!   <Order>
@@ -17,10 +17,10 @@ use std::io::{self, Read, Write};
 use std::process::exit;
 
 fn main() {
-    // the function asked for: --describe prints the manifest (plugin.json beside the source); "run" is the only other
+    // the function asked for: --describe prints the manifest (manifest.json beside the source); "run" is the only other
     match std::env::args().nth(1).as_deref() {
         Some("--describe") => {
-            print!("{}", include_str!("../plugin.json"));
+            print!("{}", include_str!("../manifest.json"));
             return;
         }
         Some("run") => {}

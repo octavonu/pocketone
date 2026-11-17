@@ -15,16 +15,16 @@ import (
 	"github.com/tetratelabs/wazero/sys"
 )
 
-// A plugin is a WASI program (wasip1), the kind any language with a WASI target builds from a plain main: its input
+// A module is a WASI program (wasip1), the kind any language with a WASI target builds from a plain main: its input
 // on stdin, its output on stdout, and an exit code that says whether it worked. It gets the function asked for as
 // its first argument (os.Args[1] in Go), and nothing else: no files, no environment, no network. wasip1 has no
 // call that opens a connection, and the host gives it no folder, no variables and no sockets.
 
-// Nothing compiled outlives a call: every call compiles its plugin into a runtime of its own and closes it after, so
-// a plugin costs memory only while it runs. Compiling is the slow part (~1.7 s for a Go plugin, ~45 ms for Rust or
-// Zig), so plugins on a hot path are better in Rust or Zig.
+// Nothing compiled outlives a call: every call compiles its module into a runtime of its own and closes it after, so
+// a module costs memory only while it runs. Compiling is the slow part (~1.7 s for a Go module, ~45 ms for Rust or
+// Zig), so modules on a hot path are better in Rust or Zig.
 
-// compileCache stays nil outside the tests, which set one so the suite doesn't compile the same plugin thousands of
+// compileCache stays nil outside the tests, which set one so the suite doesn't compile the same module thousands of
 // times (export_test.go).
 var compileCache wazero.CompilationCache
 
@@ -47,8 +47,8 @@ func newRuntime(ctx context.Context, maxCallMemoryMB int) (wazero.Runtime, error
 // checkCode checks a module when its file is listed, so a broken one shows right away, not on its first call, and
 // asks it for its manifest: the module run once as `<name> --describe`, with nothing on stdin and the limits of a
 // call. It uses wazero's interpreter, which decodes and validates without making machine code: ~0.25 s for a Go
-// plugin, against ~1.7 s to compile it. err is why the module can't run; describeErr what's wrong with what it
-// printed for --describe (the plugin still runs, with the defaults).
+// module, against ~1.7 s to compile it. err is why the module can't run; describeErr what's wrong with what it
+// printed for --describe (the module still runs, with the defaults).
 func checkCode(code []byte, name string, maxCallMemoryMB int, timeout time.Duration) (language string, m Manifest, describeErr, err error) {
 	ctx := context.Background()
 	rt := wazero.NewRuntimeWithConfig(ctx, wazero.NewRuntimeConfigInterpreter().
@@ -74,7 +74,7 @@ func checkCode(code []byte, name string, maxCallMemoryMB int, timeout time.Durat
 	return language, m, describeErr, nil
 }
 
-// describe runs the module as `<name> --describe` and reads its manifest. A plugin that exits non-zero or prints
+// describe runs the module as `<name> --describe` and reads its manifest. A module that exits non-zero or prints
 // nothing doesn't answer --describe: the zero Manifest, with no error.
 func describe(ctx context.Context, rt wazero.Runtime, mod wazero.CompiledModule, name string, timeout time.Duration) (Manifest, error) {
 	ctx, cancel := context.WithTimeout(ctx, timeout)
@@ -97,7 +97,7 @@ func describe(ctx context.Context, rt wazero.Runtime, mod wazero.CompiledModule,
 
 // producersLanguage is the source language a module's "producers" section names (the tool-conventions format: Go
 // writes it, Rust too unless stripped), or "". C is skipped: it's WASI's libc in a Rust or Zig program (Zig names
-// only C99), not what the plugin was written in.
+// only C99), not what the module was written in.
 func producersLanguage(b []byte) string {
 	// the section is LEB128 counts (binary.Uvarint) and length-prefixed strings; ok turns false past the end, for good
 	ok := true
@@ -136,7 +136,7 @@ func isC(lang string) bool {
 	return lang == "C" || (len(lang) > 1 && lang[0] == 'C' && (lang[1] >= '0' && lang[1] <= '9' || lang[1] == '+'))
 }
 
-// checkModule refuses a module that isn't a plugin: one that imports anything but WASI (built for host functions
+// checkModule refuses a module that can't run here: one that imports anything but WASI (built for host functions
 // this host doesn't have, such as an Extism PDK's), or a library with no main to run.
 func checkModule(m wazero.CompiledModule) error {
 	for _, f := range m.ImportedFunctions() {
@@ -145,9 +145,9 @@ func checkModule(m wazero.CompiledModule) error {
 			continue
 		}
 		if strings.HasPrefix(mod, "extism:") {
-			return fmt.Errorf("imports %s.%s: an Extism plugin; a plugin here is a WASI program that reads stdin and writes stdout", mod, name)
+			return fmt.Errorf("imports %s.%s: an Extism plugin; a module here is a WASI program that reads stdin and writes stdout", mod, name)
 		}
-		return fmt.Errorf("imports %s.%s, which this host doesn't provide (plugins get only their input)", mod, name)
+		return fmt.Errorf("imports %s.%s, which this host doesn't provide (modules get only their input)", mod, name)
 	}
 	if m.ExportedFunctions()["_start"] == nil {
 		return errors.New("not a WASI program (no _start): build it from a main, not as a library (in Go, without -buildmode=c-shared)")

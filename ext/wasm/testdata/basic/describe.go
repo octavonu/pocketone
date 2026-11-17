@@ -4,7 +4,7 @@ package main
 
 import _ "embed"
 
-// describe is what --describe prints: the manifest, kept as plugin.json beside the source.
+// describe is what --describe prints: the manifest, kept as manifest.json beside the source.
 //
-//go:embed plugin.json
+//go:embed manifest.json
 var describe string

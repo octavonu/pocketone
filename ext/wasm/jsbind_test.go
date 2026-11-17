@@ -21,7 +21,7 @@ import (
 	"github.com/pockethost/pocketone/ext/wasm"
 )
 
-// hooks is what a programmer writes in pb_hooks: the plugin gets what the hook gives it, the hook decides what to
+// hooks is what a programmer writes in pb_hooks: the module gets what the hook gives it, the hook decides what to
 // save. Errors are caught (results) or not (strict: the save fails).
 const hooks = `
 onRecordCreate(async (e) => {
@@ -33,28 +33,28 @@ onRecordCreate(async (e) => {
 
 onRecordCreate(async (e) => {
   try {
-    const out = await $wasm.call.async(e.record.get("plugin"), e.record.get("fn"), { text: "x" })
+    const out = await $wasm.call.async(e.record.get("module"), e.record.get("fn"), { text: "x" })
     e.record.set("result", JSON.stringify(out))
   } catch (err) {
     e.record.set("name", err.name)
     e.record.set("code", err.code)
     e.record.set("message", err.message)
     e.record.set("retryable", err.retryable)
-    e.record.set("plugin", err.plugin)
+    e.record.set("module", err.module)
   }
-  e.record.set("plugins", JSON.stringify($wasm.plugins().filter((p) => p.running).map((p) => p.name)))
+  e.record.set("modules", JSON.stringify($wasm.modules().filter((p) => p.running).map((p) => p.name)))
   return e.next()
 }, "results")
 
 onRecordCreate(async (e) => {
-  await $wasm.run.async(e.record.get("plugin"), {})
+  await $wasm.run.async(e.record.get("module"), {})
   return e.next()
 }, "strict")
 
-// the plugin's stderr, through inspect
+// the module's stderr, through inspect
 onRecordCreate(async (e) => {
   try {
-    const out = await $wasm.call.async(e.record.get("plugin"), e.record.get("fn"), { text: e.record.get("title") })
+    const out = await $wasm.call.async(e.record.get("module"), e.record.get("fn"), { text: e.record.get("title") })
     e.record.set("result", JSON.stringify(out))
   } catch (err) {
     e.record.set("result", err.name + " " + err.code)
@@ -79,24 +79,24 @@ onRecordCreate(async (e) => {
 }, "echoes")
 `
 
-// jsApp is an app with ext/wasm, the basic plugin, and the hooks above; sandboxed runs them under ext/sandbox.
+// jsApp is an app with ext/wasm, the basic module, and the hooks above; sandboxed runs them under ext/sandbox.
 func jsApp(t *testing.T, sandboxed bool) env {
 	t.Helper()
 	code := module(t, basic)
-	return newApp(t, wasm.Config{Timeout: time.Second}, func(app core.App, pluginDir string) {
+	return newApp(t, wasm.Config{Timeout: time.Second}, func(app core.App, moduleDir string) {
 		posts := core.NewBaseCollection("posts")
 		posts.Fields.Add(&core.TextField{Name: "title"}, &core.TextField{Name: "summary"}, &core.NumberField{Name: "words"})
 		results := core.NewBaseCollection("results")
-		for _, f := range []string{"plugin", "fn", "result", "name", "code", "message", "plugins"} {
+		for _, f := range []string{"module", "fn", "result", "name", "code", "message", "modules"} {
 			results.Fields.Add(&core.TextField{Name: f, Max: 5000})
 		}
 		results.Fields.Add(&core.BoolField{Name: "retryable"})
 		strict := core.NewBaseCollection("strict")
-		strict.Fields.Add(&core.TextField{Name: "plugin"})
+		strict.Fields.Add(&core.TextField{Name: "module"})
 		echoes := core.NewBaseCollection("echoes")
 		echoes.Fields.Add(&core.TextField{Name: "kind"}, &core.TextField{Name: "result"})
 		awaits := core.NewBaseCollection("awaits")
-		for _, f := range []string{"plugin", "fn", "title", "result", "stderr"} {
+		for _, f := range []string{"module", "fn", "title", "result", "stderr"} {
 			awaits.Fields.Add(&core.TextField{Name: f})
 		}
 		for _, c := range []*core.Collection{posts, results, strict, echoes, awaits} {
@@ -105,8 +105,8 @@ func jsApp(t *testing.T, sandboxed bool) env {
 				t.Fatal(err)
 			}
 		}
-		install(t, pluginDir, "basic", code)
-		install(t, pluginDir, "broken", code[:1000]) // in the folder, but doesn't load
+		install(t, moduleDir, "basic", code)
+		install(t, moduleDir, "broken", code[:1000]) // in the folder, but doesn't load
 
 		dir := t.TempDir()
 		hooksDir := filepath.Join(dir, "pb_hooks")
@@ -139,7 +139,7 @@ func create(t *testing.T, app core.App, coll string, data map[string]any) (*core
 }
 
 // TestJSHooks: $wasm from real pb_hooks, plain and under the sandbox: a computed field set before the save,
-// $wasm.call.async and $wasm.plugins(), every error as a WasmError rejection with its code, how inputs (string,
+// $wasm.call.async and $wasm.modules(), every error as a WasmError rejection with its code, how inputs (string,
 // bytes, buffer, null, object) and outputs (JSON, text, empty) cross over, and an uncaught error failing the save.
 func TestJSHooks(t *testing.T) {
 	for _, sandboxed := range []bool{false, true} {
@@ -160,9 +160,9 @@ func TestJSHooks(t *testing.T) {
 				t.Fatalf("summary %q, words %d", p.GetString("summary"), p.GetInt("words"))
 			}
 
-			result := func(plugin, fn string) *core.Record {
+			result := func(module, fn string) *core.Record {
 				t.Helper()
-				r, err := create(t, e.app, "results", map[string]any{"plugin": plugin, "fn": fn})
+				r, err := create(t, e.app, "results", map[string]any{"module": module, "fn": fn})
 				if err != nil {
 					t.Fatal(err)
 				}
@@ -183,19 +183,19 @@ func TestJSHooks(t *testing.T) {
 			if r.GetString("result") != `{"count":1}` || r.GetString("code") != "" {
 				t.Fatalf("counter: %q %q", r.GetString("result"), r.GetString("code"))
 			}
-			if r.GetString("plugins") != `["basic"]` {
-				t.Fatalf("plugins: %s", r.GetString("plugins"))
+			if r.GetString("modules") != `["basic"]` {
+				t.Fatalf("modules: %s", r.GetString("modules"))
 			}
 
 			// errors, as JS exceptions
 			wantErr(result("basic", "fail"), "rate_limited", "try again later", true)
-			wantErr(result("basic", "failPlain"), wasm.CodePluginError, "something broke", false)
+			wantErr(result("basic", "failPlain"), wasm.CodeModuleError, "something broke", false)
 			wantErr(result("basic", "nosuch"), wasm.CodeNoSuchFunction, "nosuch", false)
 			wantErr(result("basic", "loop"), wasm.CodeTimeout, "time limit", true)
 			wantErr(result("broken", "run"), wasm.CodeNotLoaded, "didn't load", false)
-			wantErr(result("nope", "run"), wasm.CodeNotFound, "no such plugin", false)
-			if p := result("nope", "run").GetString("plugin"); p != "nope" {
-				t.Fatalf("plugin: %q", p)
+			wantErr(result("nope", "run"), wasm.CodeNotFound, "no such module", false)
+			if p := result("nope", "run").GetString("module"); p != "nope" {
+				t.Fatalf("module: %q", p)
 			}
 
 			// the input as stdin: strings and bytes as they are, null as nothing, the rest as JSON; the output
@@ -218,25 +218,25 @@ func TestJSHooks(t *testing.T) {
 				}
 			}
 
-			// another hook: the same results, and the plugin's stderr through inspect
-			for _, tc := range []struct{ plugin, fn, want string }{
+			// another hook: the same results, and the module's stderr through inspect
+			for _, tc := range []struct{ module, fn, want string }{
 				{"basic", "run", `{"text":"ASYNC HI","words":2}`},
 				{"basic", "fail", "WasmError rate_limited"},
 				{"nope", "run", "WasmError not_found"},
 			} {
-				r, err := create(t, e.app, "awaits", map[string]any{"plugin": tc.plugin, "fn": tc.fn, "title": "async hi"})
+				r, err := create(t, e.app, "awaits", map[string]any{"module": tc.module, "fn": tc.fn, "title": "async hi"})
 				if err != nil {
-					t.Fatalf("%s.%s: %v", tc.plugin, tc.fn, err)
+					t.Fatalf("%s.%s: %v", tc.module, tc.fn, err)
 				}
 				r, _ = e.app.FindRecordById("awaits", r.Id)
 				if r.GetString("result") != tc.want || r.GetString("stderr") != "working on it\n" {
-					t.Errorf("%s.%s: %q %q, want %s", tc.plugin, tc.fn, r.GetString("result"), r.GetString("stderr"), tc.want)
+					t.Errorf("%s.%s: %q %q, want %s", tc.module, tc.fn, r.GetString("result"), r.GetString("stderr"), tc.want)
 				}
 			}
 
-			// not caught: the save fails with the plugin's message
-			if _, err := create(t, e.app, "strict", map[string]any{"plugin": "nope"}); err == nil ||
-				!strings.Contains(err.Error(), "no such plugin") {
+			// not caught: the save fails with the module's message
+			if _, err := create(t, e.app, "strict", map[string]any{"module": "nope"}); err == nil ||
+				!strings.Contains(err.Error(), "no such module") {
 				t.Fatalf("strict: %v", err)
 			}
 			if n, _ := e.app.CountRecords("strict"); n != 0 {
@@ -276,8 +276,8 @@ func TestBindBeforeRegister(t *testing.T) {
 	dir := t.TempDir()
 	os.WriteFile(filepath.Join(dir, "main.pb.js"), []byte(`
 onRecordCreate(async (e) => { e.record.set("summary", (await $wasm.run.async("basic", { text: e.record.get("title") })).text); return e.next() }, "posts")`), 0o644)
-	pluginDir := t.TempDir()
-	w := wasm.New(wasm.Config{Dir: pluginDir})
+	moduleDir := t.TempDir()
+	w := wasm.New(wasm.Config{Dir: moduleDir})
 	if err := jsvm.Register(app, jsvm.Config{
 		HooksDir: dir,
 		OnInit:   func(rt js.Runtime) { extkit.BindJS(app, rt, w) }, // the engine starts before MustRegister
@@ -291,7 +291,7 @@ onRecordCreate(async (e) => { e.record.set("summary", (await $wasm.run.async("ba
 	if err := app.Save(c); err != nil {
 		t.Fatal(err)
 	}
-	install(t, pluginDir, "basic", code)
+	install(t, moduleDir, "basic", code)
 	r, _ := apis.NewRouter(app)
 	se := &core.ServeEvent{App: app, Router: r, Server: &http.Server{}}
 	if err := app.OnServe().Trigger(se, func(e *core.ServeEvent) error { return nil }); err != nil {
@@ -309,7 +309,7 @@ onRecordCreate(async (e) => { e.record.set("summary", (await $wasm.run.async("ba
 	}
 }
 
-// TestInspect: $wasm.inspect.async never rejects for the call: it returns the output, what the plugin wrote to stderr, the
+// TestInspect: $wasm.inspect.async never rejects for the call: it returns the output, what the module wrote to stderr, the
 // error as plain fields, and how long compiling and running took.
 func TestInspect(t *testing.T) {
 	e := withBasic(t, wasm.Config{})

@@ -11,7 +11,7 @@ import (
 )
 
 // Extension is ext/wasm as a PocketOne extension ([extkit.Extension]): the same value works on a single app and on
-// every instance under pocker, each instance with its own plugins in its own pb_hooks/.
+// every instance under pocker, each instance with its own modules in its own pb_hooks/.
 //
 //	set := standard.New().Add(wasm.New(wasm.Config{})) // a single app, and every pocker instance
 //
@@ -73,7 +73,7 @@ func (x *Extension) Register(app core.App, layers extkit.Config) error {
 	return err
 }
 
-// BindJS implements [extkit.JSBinder]: $wasm in the app's JS hooks. It only runs the app's own plugins, which
+// BindJS implements [extkit.JSBinder]: $wasm in the app's JS hooks. It only runs the app's own modules, which
 // reach nothing but their input, so it's safe for an untrusted tenant under pocker.
 //
 // The app's Host is looked up when $wasm is called, not here, so it doesn't matter whether the JS engine starts

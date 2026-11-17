@@ -1,4 +1,4 @@
-//! The summary plugin in Rust: the same input, output and errors as ../summary (Go), a plain program too.
+//! The summary module in Rust: the same input, output and errors as ../summary (Go), a plain program too.
 //!
 //!   stdin:  {"title": "...", "body": "..."}
 //!   stdout: {"text": "<title>: <first 12 words> …", "words": <word count>}
@@ -28,10 +28,10 @@ fn fail(code: &str, message: &str) -> ! {
 }
 
 fn main() {
-    // the function asked for: --describe prints the manifest (plugin.json beside the source); "run" is the only other
+    // the function asked for: --describe prints the manifest (manifest.json beside the source); "run" is the only other
     match std::env::args().nth(1).as_deref() {
         Some("--describe") => {
-            print!("{}", include_str!("../plugin.json"));
+            print!("{}", include_str!("../manifest.json"));
             return;
         }
         Some("run") => {}

@@ -6,14 +6,14 @@ pub fn build(b: *std.Build) void {
     const target = b.standardTargetOptions(.{
         .default_target = .{ .os_tag = .wasi, .cpu_arch = .wasm32 },
     });
-    const plugin = b.addExecutable(.{
+    const exe = b.addExecutable(.{
         .name = "summary",
         .root_source_file = b.path("src/main.zig"),
         .target = target,
         .optimize = optimize,
     });
-    plugin.root_module.addAnonymousImport("plugin.json", .{ .root_source_file = b.path("plugin.json") });
+    exe.root_module.addAnonymousImport("manifest.json", .{ .root_source_file = b.path("manifest.json") });
     // Zig's default stack is 16 MB: every call would start with 16 MB of memory. 1 MB is plenty here.
-    plugin.stack_size = 1 << 20;
-    b.installArtifact(plugin);
+    exe.stack_size = 1 << 20;
+    b.installArtifact(exe);
 }

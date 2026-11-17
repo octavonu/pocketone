@@ -1,6 +1,6 @@
-// Command basic is the plugin ext/wasm's core tests run: one function per behavior a host must handle. A plain
+// Command basic is the module ext/wasm's core tests run: one function per behavior a host must handle. A plain
 // WASI program: the function is os.Args[1], the input is stdin, the output is stdout. Asked for --describe, it
-// prints its manifest (describe.go: plugin.json; build tags give the tests other answers).
+// prints its manifest (describe.go: manifest.json; build tags give the tests other answers).
 package main
 
 import (
@@ -18,7 +18,7 @@ func main() {
 	switch os.Args[1] {
 	case "--describe":
 		if describe == "" {
-			os.Exit(1) // built without one: a plugin that doesn't answer --describe
+			os.Exit(1) // built without one: a module that doesn't answer --describe
 		}
 		fmt.Print(describe)
 	case "run": // upper-cases input.text and counts its words

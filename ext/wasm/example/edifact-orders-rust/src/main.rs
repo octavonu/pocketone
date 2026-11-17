@@ -1,9 +1,9 @@
-//! edifact-orders-rust, an example plugin in Rust: an EDIFACT ORDERS message (raw text on stdin, as the hook got it)
+//! edifact-orders-rust, an example module in Rust: an EDIFACT ORDERS message (raw text on stdin, as the hook got it)
 //! read into an order (JSON on stdout), every segment of a usual order kept: the interchange (UNB), the document (BGM,
 //! DTM, RFF, CUX), the parties with their addresses and contacts (NAD, CTA, COM), and each line with its article
 //! numbers, description, quantity, dates, amount, prices and allowances (LIN, PIA, IMD, QTY, DTM, MOA, PRI, ALC, PCD),
 //! and free text (FTX). The counts in UNT and UNZ are checked. Codes stay as the message has them (BY, AAA, EN...); a
-//! segment the plugin doesn't read is listed in "unhandled", never dropped silently.
+//! segment the module doesn't read is listed in "unhandled", never dropped silently.
 //!
 //! buyer, supplier, invoicee, delivery (the parties' ids) and lines[].price (the net price) are the fields order-xml
 //! gives too. No validation against a directory. Parsing (separators, UNA, the release character) is edifact-rs's.
@@ -16,10 +16,10 @@ use std::process::exit;
 type Obj = Map<String, Value>;
 
 fn main() {
-    // the function asked for: --describe prints the manifest (plugin.json beside the source); "run" is the only other
+    // the function asked for: --describe prints the manifest (manifest.json beside the source); "run" is the only other
     match std::env::args().nth(1).as_deref() {
         Some("--describe") => {
-            print!("{}", include_str!("../plugin.json"));
+            print!("{}", include_str!("../manifest.json"));
             return;
         }
         Some("run") => {}

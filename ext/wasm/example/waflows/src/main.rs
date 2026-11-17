@@ -7,7 +7,7 @@
 //!   crypto/aes, crypto/cipher (GCM)     no:  $security.encrypt is AES-GCM, but -> gcm-open, gcm-seal
 //!                                            with its own key size and a random nonce, not Meta's key and IV
 //!
-//! So the plugin is only those two, bytes as base64 in and out; the hook does the rest:
+//! So the module is only those two, bytes as base64 in and out; the hook does the rest:
 //!
 //!   const key = $wasm.call("waflows", "rsa-decrypt", { privateKey, data: body.encrypted_aes_key }).data
 //!   const req = $wasm.call("waflows", "gcm-open", { key, iv: body.initial_vector, data: body.encrypted_flow_data })
@@ -23,9 +23,9 @@ use serde_json::{json, Value};
 use std::io::{self, Read};
 
 fn main() {
-    // `<name> --describe`: the manifest, kept as plugin.json beside the source
+    // `<name> --describe`: the manifest, kept as manifest.json beside the source
     if std::env::args().nth(1).as_deref() == Some("--describe") {
-        print!("{}", include_str!("../plugin.json"));
+        print!("{}", include_str!("../manifest.json"));
         return;
     }
     let mut raw = Vec::new();

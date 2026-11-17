@@ -1,5 +1,5 @@
-// Command crypto is an example plugin: AES-256-GCM, the kind of helper an app used to run with $os.exec. The key comes
-// in with the input, from the hook; the plugin can't keep it or send it anywhere.
+// Command crypto is an example module: AES-256-GCM, the kind of helper an app used to run with $os.exec. The key comes
+// in with the input, from the hook; the module can't keep it or send it anywhere.
 //
 //	encrypt  stdin {"key": "<32 bytes, base64>", "text": "..."}  ->  {"data": "<nonce + ciphertext, base64>"}
 //	decrypt  stdin {"key": "...", "data": "..."}                 ->  {"text": "..."}
@@ -19,9 +19,9 @@ import (
 	"os"
 )
 
-// manifest is what `<name> --describe` prints: plugin.json beside the source.
+// manifest is what `<name> --describe` prints: manifest.json beside the source.
 //
-//go:embed plugin.json
+//go:embed manifest.json
 var manifest string
 
 func main() {

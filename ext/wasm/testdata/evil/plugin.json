@@ -1,4 +1,0 @@
-{
-  "description": "Hostile test plugin: tries every way out of the box and reports what it got",
-  "functions": ["run", "listen", "exit"]
-}

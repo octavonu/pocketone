@@ -1,5 +1,5 @@
 {
-  "description": "ext/wasm core test plugin",
+  "description": "ext/wasm core test module",
   "version": "1.0.0",
   "functions": ["run", "echo", "args", "fail", "failPlain", "failSilent", "logs", "loop", "grab", "counter", "panics", "big"]
 }

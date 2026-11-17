@@ -1,5 +1,5 @@
 {
-  "description": "Tries what a plugin must never do: read files, see the environment, run a command ($os.cmd), send to attacker.example. All refused.",
+  "description": "Tries what a module must never do: read files, see the environment, run a command ($os.cmd), send to attacker.example. All refused.",
   "version": "1.0.0",
   "functions": [
     "run"
@@ -22,7 +22,7 @@
           "write pwned.txt": "refused: No such file or directory (os error 44)"
         },
         "verdict": "nothing got out of the box",
-        "why": "a plugin gets stdin, stdout and stderr, nothing else: no files, no environment, no processes, no network"
+        "why": "a module gets stdin, stdout and stderr, nothing else: no files, no environment, no processes, no network"
       }
     },
     {
@@ -43,7 +43,7 @@
           "write pwned.txt": "refused: No such file or directory (os error 44)"
         },
         "verdict": "nothing got out of the box",
-        "why": "a plugin gets stdin, stdout and stderr, nothing else: no files, no environment, no processes, no network"
+        "why": "a module gets stdin, stdout and stderr, nothing else: no files, no environment, no processes, no network"
       }
     }
   ]

@@ -1,4 +1,4 @@
-//! The summary plugin in Zig: the same input, output and errors as ../summary (Go), a plain program too.
+//! The summary module in Zig: the same input, output and errors as ../summary (Go), a plain program too.
 //!
 //!   stdin:  {"title": "...", "body": "..."}
 //!   stdout: {"text": "<title>: <first 12 words> …", "words": <word count>}
@@ -19,12 +19,12 @@ pub fn main() !void {
     defer arena.deinit();
     const allocator = arena.allocator();
 
-    // the function asked for: --describe prints the manifest (plugin.json beside the source, which build.zig makes
+    // the function asked for: --describe prints the manifest (manifest.json beside the source, which build.zig makes
     // importable); "run" is the only other
     const args = try std.process.argsAlloc(allocator);
     const function = if (args.len > 1) args[1] else "";
     if (std.mem.eql(u8, function, "--describe")) {
-        try std.io.getStdOut().writeAll(@embedFile("plugin.json"));
+        try std.io.getStdOut().writeAll(@embedFile("manifest.json"));
         return;
     }
     if (!std.mem.eql(u8, function, "run")) fail("no_such_function", function);
