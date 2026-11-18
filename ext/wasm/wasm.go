@@ -190,6 +190,7 @@ func Register(app core.App, cfg Config) (*Host, error) {
 		h.cache, h.cacheErr = cacheFor(h.cfg.CacheDir)
 	}
 	app.Store().Set(storeKey, h)
+	addMCP(app, h)
 
 	// modules only run while serving, so other commands (migrate, superuser, ...) never compile them
 	app.OnServe().Bind(&hook.Handler[*core.ServeEvent]{

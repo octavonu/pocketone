@@ -64,6 +64,11 @@ func (s settings) over(c Config) Config {
 	return c
 }
 
+// Contracts implements [extkit.Declarer]: wasm_list_modules goes to the app's MCP server, when it has one.
+func (x *Extension) Contracts() extkit.Contracts {
+	return extkit.Contracts{WorksWith: extkit.IDs("mcp/v1")}
+}
+
 // Register implements [extkit.Extension]: the app's settings layers apply over the Config given to [New].
 func (x *Extension) Register(app core.App, layers extkit.Config) error {
 	var s settings
